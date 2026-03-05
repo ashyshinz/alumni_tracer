@@ -22,7 +22,7 @@ class _VerificationQueuePageState extends State<VerificationQueuePage> {
   // 1. DATA SOURCE: Fetch real pending users from MySQL
   Future<void> _fetchPendingUsers() async {
     try {
-      // Usba ang IP kung naggamit ka og physical device (pananglitan: 192.168.1.x)
+  
       final response = await http.get(Uri.parse('http://localhost:8080/alumni_api/get_pending_users.php'));
       
       if (response.statusCode == 200) {
@@ -47,7 +47,7 @@ class _VerificationQueuePageState extends State<VerificationQueuePage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://localhost/alumni_api/verify_user.php'),
+        Uri.parse('http://localhost:8080/alumni_api/verify_user.php'),
         body: jsonEncode({"id": id}),
       );
 
