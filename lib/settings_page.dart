@@ -24,14 +24,20 @@ class _SettingsPageState extends State<SettingsPage> {
   void _updatePassword() {
     if (_newPassController.text != _confirmPassController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Passwords do not match!"), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text("Passwords do not match!"),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
-    
+
     // Simulate API call
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Password updated successfully!"), backgroundColor: Colors.green),
+      const SnackBar(
+        content: Text("Password updated successfully!"),
+        backgroundColor: Colors.green,
+      ),
     );
     _currentPassController.clear();
     _newPassController.clear();
@@ -49,7 +55,11 @@ class _SettingsPageState extends State<SettingsPage> {
           children: [
             const Text(
               "Settings",
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF333333)),
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF333333),
+              ),
             ),
             const Text(
               "Manage your account preferences and security",
@@ -68,12 +78,25 @@ class _SettingsPageState extends State<SettingsPage> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(15),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                        ),
+                      ],
                     ),
                     child: Column(
                       children: [
-                        _buildMenuTile(Icons.lock_outline, "Password And Security", 0),
-                        _buildMenuTile(Icons.notifications_none, "Notifications", 1),
+                        _buildMenuTile(
+                          Icons.lock_outline,
+                          "Password And Security",
+                          0,
+                        ),
+                        _buildMenuTile(
+                          Icons.notifications_none,
+                          "Notifications",
+                          1,
+                        ),
                         _buildMenuTile(Icons.security_outlined, "Privacy", 2),
                       ],
                     ),
@@ -89,7 +112,12 @@ class _SettingsPageState extends State<SettingsPage> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(15),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                        ),
+                      ],
                     ),
                     child: _buildActiveSection(),
                   ),
@@ -121,19 +149,39 @@ class _SettingsPageState extends State<SettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader(Icons.lock_person, "Password & Security", "Update your password and security settings"),
+        _buildSectionHeader(
+          Icons.lock_person,
+          "Password & Security",
+          "Update your password and security settings",
+        ),
         const SizedBox(height: 30),
-        _buildPasswordField("Current Password", _currentPassController, _obscureCurrent, () {
-          setState(() => _obscureCurrent = !_obscureCurrent);
-        }),
+        _buildPasswordField(
+          "Current Password",
+          _currentPassController,
+          _obscureCurrent,
+          () {
+            setState(() => _obscureCurrent = !_obscureCurrent);
+          },
+        ),
         const SizedBox(height: 20),
-        _buildPasswordField("New Password", _newPassController, _obscureNew, () {
-          setState(() => _obscureNew = !_obscureNew);
-        }, hint: "Minimum 6 characters"),
+        _buildPasswordField(
+          "New Password",
+          _newPassController,
+          _obscureNew,
+          () {
+            setState(() => _obscureNew = !_obscureNew);
+          },
+          hint: "Minimum 6 characters",
+        ),
         const SizedBox(height: 20),
-        _buildPasswordField("Confirm New Password", _confirmPassController, _obscureConfirm, () {
-          setState(() => _obscureConfirm = !_obscureConfirm);
-        }),
+        _buildPasswordField(
+          "Confirm New Password",
+          _confirmPassController,
+          _obscureConfirm,
+          () {
+            setState(() => _obscureConfirm = !_obscureConfirm);
+          },
+        ),
         const SizedBox(height: 30),
         ElevatedButton(
           onPressed: _updatePassword,
@@ -141,7 +189,9 @@ class _SettingsPageState extends State<SettingsPage> {
             backgroundColor: const Color(0xFF2962FF),
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
           child: const Text("Update Password"),
         ),
@@ -154,11 +204,30 @@ class _SettingsPageState extends State<SettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader(Icons.notifications_active, "Notifications", "Control how you receive alerts"),
+        _buildSectionHeader(
+          Icons.notifications_active,
+          "Notifications",
+          "Control how you receive alerts",
+        ),
         const SizedBox(height: 20),
-        SwitchListTile(title: const Text("Email Notifications"), subtitle: const Text("Receive updates via email"), value: true, onChanged: (v) {}),
-        SwitchListTile(title: const Text("Push Notifications"), subtitle: const Text("Mobile and desktop alerts"), value: false, onChanged: (v) {}),
-        SwitchListTile(title: const Text("Event Reminders"), subtitle: const Text("Get notified about upcoming reunions"), value: true, onChanged: (v) {}),
+        SwitchListTile(
+          title: const Text("Email Notifications"),
+          subtitle: const Text("Receive updates via email"),
+          value: true,
+          onChanged: (v) {},
+        ),
+        SwitchListTile(
+          title: const Text("Push Notifications"),
+          subtitle: const Text("Mobile and desktop alerts"),
+          value: false,
+          onChanged: (v) {},
+        ),
+        SwitchListTile(
+          title: const Text("Event Reminders"),
+          subtitle: const Text("Get notified about upcoming reunions"),
+          value: true,
+          onChanged: (v) {},
+        ),
       ],
     );
   }
@@ -168,11 +237,27 @@ class _SettingsPageState extends State<SettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader(Icons.security, "Privacy Settings", "Manage your data and profile visibility"),
+        _buildSectionHeader(
+          Icons.security,
+          "Privacy Settings",
+          "Manage your data and profile visibility",
+        ),
         const SizedBox(height: 20),
-        _buildPrivacyOption("Public Profile", "Allow others to see your alumni profile", true),
-        _buildPrivacyOption("Show Employment", "Make your current job visible to classmates", false),
-        _buildPrivacyOption("Contact Info", "Allow alumni to see your contact details", false),
+        _buildPrivacyOption(
+          "Public Profile",
+          "Allow others to see your alumni profile",
+          true,
+        ),
+        _buildPrivacyOption(
+          "Show Employment",
+          "Make your current job visible to classmates",
+          false,
+        ),
+        _buildPrivacyOption(
+          "Contact Info",
+          "Allow alumni to see your contact details",
+          false,
+        ),
       ],
     );
   }
@@ -184,15 +269,24 @@ class _SettingsPageState extends State<SettingsPage> {
       children: [
         Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: const Color(0xFFE8EAF6), borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8EAF6),
+            borderRadius: BorderRadius.circular(10),
+          ),
           child: Icon(icon, color: const Color(0xFF3F51B5)),
         ),
         const SizedBox(width: 15),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              subtitle,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
           ],
         ),
       ],
@@ -203,20 +297,39 @@ class _SettingsPageState extends State<SettingsPage> {
     bool isActive = _selectedIndex == index;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: isActive ? Colors.grey.shade100 : Colors.transparent, borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(
+        color: isActive ? Colors.grey.shade100 : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+      ),
       child: ListTile(
         leading: Icon(icon, color: isActive ? Colors.blue : Colors.grey),
-        title: Text(title, style: TextStyle(color: isActive ? Colors.black : Colors.grey, fontWeight: isActive ? FontWeight.bold : FontWeight.normal, fontSize: 14)),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: isActive ? Colors.black : Colors.grey,
+            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+            fontSize: 14,
+          ),
+        ),
         onTap: () => setState(() => _selectedIndex = index),
       ),
     );
   }
 
-  Widget _buildPasswordField(String label, TextEditingController controller, bool obscure, VoidCallback onToggle, {String? hint}) {
+  Widget _buildPasswordField(
+    String label,
+    TextEditingController controller,
+    bool obscure,
+    VoidCallback onToggle, {
+    String? hint,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
@@ -225,7 +338,12 @@ class _SettingsPageState extends State<SettingsPage> {
             hintText: hint,
             prefixIcon: const Icon(Icons.lock_outline, size: 20),
             suffixIcon: IconButton(
-              icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 20),
+              icon: Icon(
+                obscure
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+                size: 20,
+              ),
               onPressed: onToggle,
             ),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),

@@ -3,9 +3,9 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'sign_up_page.dart'; 
-import 'admin_main.dart'; 
-import 'dean_main.dart'; 
+import 'sign_up_page.dart';
+import 'ADMIN/admin_main.dart';
+import 'DEAN/dean_main.dart';
 import 'main.dart'; // Import to access MainShell (Alumni)
 
 class LoginPage extends StatefulWidget {
@@ -18,9 +18,9 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  
-  String? errorMessage; 
-  String? successMessage; 
+
+  String? errorMessage;
+  String? successMessage;
   bool _isLoading = false;
 
   Future<void> _handleLogin() async {
@@ -39,8 +39,20 @@ class _LoginPageState extends State<LoginPage> {
 
   setState(() => _isLoading = true);
 
+<<<<<<< HEAD
   try {
     final url = Uri.parse('http://localhost:8080/alumni_api/login.php');
+=======
+    try {
+      // For local development on emulator, 10.0.2.2 is usually used instead of localhost
+      final url = Uri.parse('http://localhost:80/alumni_php-main/login.php');
+
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"email": email, "password": password}),
+      );
+>>>>>>> 9efc6c68a6dfbf51d29fce8dcd7b50fbcce54a18
 
     final response = await http.post(
       url,
@@ -58,6 +70,7 @@ class _LoginPageState extends State<LoginPage> {
       if (result['status'] == 'success') {
         setState(() => successMessage = "Login Successful! Redirecting...");
 
+<<<<<<< HEAD
         String dbRole = result['role'].toString().toLowerCase();
         String fullName = result['full_name'] ?? "User";
         String roleDisplay = result['role_display'] ?? "Alumni Member";
@@ -89,6 +102,37 @@ class _LoginPageState extends State<LoginPage> {
               builder: (context) => DeanMainShell(
                 deanName: fullName,
                 deanRole: roleDisplay,
+=======
+        // 1. EXTRACT DATA FROM UPDATED PHP RESPONSE
+        String dbRole = result['role'].toString().toLowerCase();
+        String fullName = result['full_name'] ?? "User";
+        String roleDisplay = result['role_display'] ?? "Alumni Member";
+        String userEmail =
+            result['email'] ?? email; // Use email from DB or input
+
+        await Future.delayed(const Duration(milliseconds: 1500));
+
+        if (mounted) {
+          // 2. DYNAMIC NAVIGATION WITH PARAMETERS
+          if (email == "superuser@jmc.edu.ph" ||
+              dbRole == "admin" ||
+              dbRole == "superuser") {
+            // Navigate to ADMIN
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    AdminMainShell(adminName: fullName, adminRole: roleDisplay),
+              ),
+            );
+          } else if (dbRole == "dean") {
+            // Navigate to DEAN
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    DeanMainShell(deanName: fullName, deanRole: roleDisplay),
+>>>>>>> 9efc6c68a6dfbf51d29fce8dcd7b50fbcce54a18
               ),
             ),
           );
@@ -110,9 +154,19 @@ class _LoginPageState extends State<LoginPage> {
       } else {
         setState(() => errorMessage = result['message'] ?? "Login failed.");
       }
+<<<<<<< HEAD
 
     } else {
       setState(() => errorMessage = "Server error: ${response.statusCode}");
+=======
+    } catch (e) {
+      setState(
+        () =>
+            errorMessage = "Connection error. Ensure XAMPP/Apache is running.",
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+>>>>>>> 9efc6c68a6dfbf51d29fce8dcd7b50fbcce54a18
     }
 
   } catch (e) {
@@ -158,8 +212,11 @@ class _LoginPageState extends State<LoginPage> {
               'assets/logo.png',
               height: 150,
               width: 150,
-              errorBuilder: (context, error, stackTrace) => 
-                const Icon(Icons.image_not_supported, size: 100, color: Colors.grey),
+              errorBuilder: (context, error, stackTrace) => const Icon(
+                Icons.image_not_supported,
+                size: 100,
+                color: Colors.grey,
+              ),
             ),
           ),
           Positioned(
@@ -173,7 +230,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 180),
                 _buildLargeText("HELLO", color: themeColor),
                 _buildLargeText("WELCOME!", color: themeColor),
-                _buildLargeText("USER", color: Colors.black), 
+                _buildLargeText("USER", color: Colors.black),
               ],
             ),
           ),
@@ -189,7 +246,7 @@ class _LoginPageState extends State<LoginPage> {
                     color: Colors.black.withOpacity(0.4),
                     blurRadius: 40,
                     offset: const Offset(0, 20),
-                  )
+                  ),
                 ],
               ),
               child: Column(
@@ -200,14 +257,18 @@ class _LoginPageState extends State<LoginPage> {
                     child: Container(
                       padding: const EdgeInsets.all(5),
                       decoration: BoxDecoration(
-                        color: Colors.white, 
+                        color: Colors.white,
                         shape: BoxShape.circle,
-                        border: Border.all(color: themeColor, width: 5), 
+                        border: Border.all(color: themeColor, width: 5),
                       ),
                       child: const CircleAvatar(
-                        radius: 80, 
+                        radius: 80,
                         backgroundColor: Colors.white,
-                        child: Icon(Icons.person, size: 100, color: Color(0xFF4285F4)),
+                        child: Icon(
+                          Icons.person,
+                          size: 100,
+                          color: Color(0xFF4285F4),
+                        ),
                       ),
                     ),
                   ),
@@ -216,17 +277,44 @@ class _LoginPageState extends State<LoginPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (successMessage != null) _buildBanner(successMessage!, Colors.green),
-                        if (errorMessage != null) _buildBanner(errorMessage!, Colors.red),
-                        const Text("Sign In", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 28, color: Colors.black)),
+                        if (successMessage != null)
+                          _buildBanner(successMessage!, Colors.green),
+                        if (errorMessage != null)
+                          _buildBanner(errorMessage!, Colors.red),
+                        const Text(
+                          "Sign In",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 28,
+                            color: Colors.black,
+                          ),
+                        ),
                         const SizedBox(height: 25),
-                        _buildField(Icons.email_outlined, "Email Address", themeColor, controller: _emailController),
+                        _buildField(
+                          Icons.email_outlined,
+                          "Email Address",
+                          themeColor,
+                          controller: _emailController,
+                        ),
                         const SizedBox(height: 20),
-                        _buildField(Icons.lock_outline, "Password", themeColor, isPass: true, controller: _passwordController),
+                        _buildField(
+                          Icons.lock_outline,
+                          "Password",
+                          themeColor,
+                          isPass: true,
+                          controller: _passwordController,
+                        ),
                         const SizedBox(height: 15),
                         const Align(
                           alignment: Alignment.centerRight,
-                          child: Text("Forgot Password?", style: TextStyle(color: themeColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                          child: Text(
+                            "Forgot Password?",
+                            style: TextStyle(
+                              color: themeColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 35),
                         SizedBox(
@@ -237,11 +325,21 @@ class _LoginPageState extends State<LoginPage> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: themeColor,
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
                             ),
-                            child: _isLoading 
-                              ? const CircularProgressIndicator(color: Colors.white)
-                              : const Text("LOGIN", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                            child: _isLoading
+                                ? const CircularProgressIndicator(
+                                    color: Colors.white,
+                                  )
+                                : const Text(
+                                    "LOGIN",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                    ),
+                                  ),
                           ),
                         ),
                         const SizedBox(height: 25),
@@ -249,21 +347,26 @@ class _LoginPageState extends State<LoginPage> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Text("Don't have an account? ", style: TextStyle(fontSize: 15)),
+                              const Text(
+                                "Don't have an account? ",
+                                style: TextStyle(fontSize: 15),
+                              ),
                               InkWell(
                                 onTap: () {
                                   Navigator.push(
                                     context,
-                                    MaterialPageRoute(builder: (context) => const SignUpPage()),
+                                    MaterialPageRoute(
+                                      builder: (context) => const SignUpPage(),
+                                    ),
                                   );
                                 },
                                 child: const Text(
                                   "Sign Up",
                                   style: TextStyle(
-                                    color: themeColor, 
-                                    fontWeight: FontWeight.bold, 
+                                    color: themeColor,
+                                    fontWeight: FontWeight.bold,
                                     fontSize: 15,
-                                    decoration: TextDecoration.underline
+                                    decoration: TextDecoration.underline,
                                   ),
                                 ),
                               ),
@@ -276,18 +379,37 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 30),
                   Container(
-                    padding: const EdgeInsets.symmetric(vertical: 25, horizontal: 50),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 25,
+                      horizontal: 50,
+                    ),
                     decoration: const BoxDecoration(
                       color: Color.fromARGB(255, 245, 245, 245),
-                      borderRadius: BorderRadius.only(bottomLeft: Radius.circular(40), bottomRight: Radius.circular(40)),
+                      borderRadius: BorderRadius.only(
+                        bottomLeft: Radius.circular(40),
+                        bottomRight: Radius.circular(40),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Text("Or login with", style: TextStyle(color: Colors.black54, fontSize: 16)),
+                        const Text(
+                          "Or login with",
+                          style: TextStyle(color: Colors.black54, fontSize: 16),
+                        ),
                         const Spacer(),
-                        _socialButton(FontAwesomeIcons.linkedin, "LinkedIn", themeColor, () => _launchURL('https://linkedin.com')),
+                        _socialButton(
+                          FontAwesomeIcons.linkedin,
+                          "LinkedIn",
+                          themeColor,
+                          () => _launchURL('https://linkedin.com'),
+                        ),
                         const SizedBox(width: 20),
-                        _socialButton(FontAwesomeIcons.google, "Google", themeColor, () => _launchURL('https://google.com')),
+                        _socialButton(
+                          FontAwesomeIcons.google,
+                          "Google",
+                          themeColor,
+                          () => _launchURL('https://google.com'),
+                        ),
                       ],
                     ),
                   ),
@@ -313,9 +435,22 @@ class _LoginPageState extends State<LoginPage> {
       ),
       child: Row(
         children: [
-          Icon(color == Colors.green ? Icons.check_circle : Icons.error, color: color, size: 20),
+          Icon(
+            color == Colors.green ? Icons.check_circle : Icons.error,
+            color: color,
+            size: 20,
+          ),
           const SizedBox(width: 10),
-          Expanded(child: Text(msg, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14))),
+          Expanded(
+            child: Text(
+              msg,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -324,14 +459,26 @@ class _LoginPageState extends State<LoginPage> {
   Widget _buildLargeText(String text, {Color color = Colors.white}) {
     return Text(
       text,
-      style: TextStyle(fontSize: 100, fontWeight: FontWeight.w900, color: color, height: 0.85, letterSpacing: -5),
+      style: TextStyle(
+        fontSize: 100,
+        fontWeight: FontWeight.w900,
+        color: color,
+        height: 0.85,
+        letterSpacing: -5,
+      ),
     );
   }
 
-  Widget _buildField(IconData icon, String hint, Color themeColor, {bool isPass = false, TextEditingController? controller}) {
+  Widget _buildField(
+    IconData icon,
+    String hint,
+    Color themeColor, {
+    bool isPass = false,
+    TextEditingController? controller,
+  }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white, 
+        color: Colors.white,
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: Colors.grey.shade300, width: 2),
       ),
@@ -352,14 +499,26 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _socialButton(IconData icon, String label, Color themeColor, VoidCallback onTap) {
+  Widget _socialButton(
+    IconData icon,
+    String label,
+    Color themeColor,
+    VoidCallback onTap,
+  ) {
     return InkWell(
       onTap: onTap,
       child: Row(
         children: [
           FaIcon(icon, color: themeColor, size: 20),
           const SizedBox(width: 8),
-          Text(label, style: TextStyle(color: themeColor, fontWeight: FontWeight.bold, fontSize: 14)),
+          Text(
+            label,
+            style: TextStyle(
+              color: themeColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
         ],
       ),
     );
@@ -372,10 +531,16 @@ class BackgroundClipper extends CustomClipper<Path> {
     Path path = Path();
     path.lineTo(0, size.height);
     path.lineTo(size.width * 0.7, size.height);
-    path.quadraticBezierTo(size.width * 0.9, size.height * 0.5, size.width * 0.6, 0);
+    path.quadraticBezierTo(
+      size.width * 0.9,
+      size.height * 0.5,
+      size.width * 0.6,
+      0,
+    );
     path.close();
     return path;
   }
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

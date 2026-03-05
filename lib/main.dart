@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 
 // --- Page Imports ---
 import 'login_page.dart';
-import 'dashboard_page.dart';
-import 'profile_page.dart';
-import 'employment_page.dart';
-import 'career_timeline_page.dart';
-import 'documents_page.dart';
-import 'verification_page.dart';
-import 'announcements_page.dart';
+import 'ALUMNI/dashboard_page.dart';
+import 'ALUMNI/profile_page.dart';
+import 'ALUMNI/employment_page.dart';
+import 'ALUMNI/career_timeline_page.dart';
+import 'ALUMNI/documents_page.dart';
+import 'ALUMNI/verification_page.dart';
+import 'ALUMNI/announcements_page.dart';
 import 'settings_page.dart';
-import 'surveys_page.dart'; 
+import 'ALUMNI/surveys_page.dart'; 
 
 // --- Shell Imports ---
-import 'dean_main.dart';
+import 'DEAN/dean_main.dart';
 
 void main() => runApp(const AlumniPortalApp());
 
