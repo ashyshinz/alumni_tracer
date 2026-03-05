@@ -39,20 +39,8 @@ class _LoginPageState extends State<LoginPage> {
 
   setState(() => _isLoading = true);
 
-<<<<<<< HEAD
   try {
     final url = Uri.parse('http://localhost:8080/alumni_api/login.php');
-=======
-    try {
-      // For local development on emulator, 10.0.2.2 is usually used instead of localhost
-      final url = Uri.parse('http://localhost:80/alumni_php-main/login.php');
-
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"email": email, "password": password}),
-      );
->>>>>>> 9efc6c68a6dfbf51d29fce8dcd7b50fbcce54a18
 
     final response = await http.post(
       url,
@@ -70,7 +58,6 @@ class _LoginPageState extends State<LoginPage> {
       if (result['status'] == 'success') {
         setState(() => successMessage = "Login Successful! Redirecting...");
 
-<<<<<<< HEAD
         String dbRole = result['role'].toString().toLowerCase();
         String fullName = result['full_name'] ?? "User";
         String roleDisplay = result['role_display'] ?? "Alumni Member";
@@ -102,37 +89,6 @@ class _LoginPageState extends State<LoginPage> {
               builder: (context) => DeanMainShell(
                 deanName: fullName,
                 deanRole: roleDisplay,
-=======
-        // 1. EXTRACT DATA FROM UPDATED PHP RESPONSE
-        String dbRole = result['role'].toString().toLowerCase();
-        String fullName = result['full_name'] ?? "User";
-        String roleDisplay = result['role_display'] ?? "Alumni Member";
-        String userEmail =
-            result['email'] ?? email; // Use email from DB or input
-
-        await Future.delayed(const Duration(milliseconds: 1500));
-
-        if (mounted) {
-          // 2. DYNAMIC NAVIGATION WITH PARAMETERS
-          if (email == "superuser@jmc.edu.ph" ||
-              dbRole == "admin" ||
-              dbRole == "superuser") {
-            // Navigate to ADMIN
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) =>
-                    AdminMainShell(adminName: fullName, adminRole: roleDisplay),
-              ),
-            );
-          } else if (dbRole == "dean") {
-            // Navigate to DEAN
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) =>
-                    DeanMainShell(deanName: fullName, deanRole: roleDisplay),
->>>>>>> 9efc6c68a6dfbf51d29fce8dcd7b50fbcce54a18
               ),
             ),
           );
@@ -154,19 +110,9 @@ class _LoginPageState extends State<LoginPage> {
       } else {
         setState(() => errorMessage = result['message'] ?? "Login failed.");
       }
-<<<<<<< HEAD
 
     } else {
       setState(() => errorMessage = "Server error: ${response.statusCode}");
-=======
-    } catch (e) {
-      setState(
-        () =>
-            errorMessage = "Connection error. Ensure XAMPP/Apache is running.",
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
->>>>>>> 9efc6c68a6dfbf51d29fce8dcd7b50fbcce54a18
     }
 
   } catch (e) {
@@ -176,7 +122,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-  Future<void> _launchURL(String url) async {
+  Future<void> launchURL(String url) async {
     final Uri uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       setState(() => errorMessage = "Could not launch $url");
@@ -228,9 +174,9 @@ class _LoginPageState extends State<LoginPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 180),
-                _buildLargeText("HELLO", color: themeColor),
-                _buildLargeText("WELCOME!", color: themeColor),
-                _buildLargeText("USER", color: Colors.black),
+                buildLargeText("HELLO", color: themeColor),
+                buildLargeText("WELCOME!", color: themeColor),
+                buildLargeText("USER", color: Colors.black),
               ],
             ),
           ),
@@ -278,9 +224,9 @@ class _LoginPageState extends State<LoginPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (successMessage != null)
-                          _buildBanner(successMessage!, Colors.green),
+                          buildBanner(successMessage!, Colors.green),
                         if (errorMessage != null)
-                          _buildBanner(errorMessage!, Colors.red),
+                          buildBanner(errorMessage!, Colors.red),
                         const Text(
                           "Sign In",
                           style: TextStyle(
@@ -290,14 +236,14 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         const SizedBox(height: 25),
-                        _buildField(
+                        buildField(
                           Icons.email_outlined,
                           "Email Address",
                           themeColor,
                           controller: _emailController,
                         ),
                         const SizedBox(height: 20),
-                        _buildField(
+                        buildField(
                           Icons.lock_outline,
                           "Password",
                           themeColor,
@@ -397,18 +343,18 @@ class _LoginPageState extends State<LoginPage> {
                           style: TextStyle(color: Colors.black54, fontSize: 16),
                         ),
                         const Spacer(),
-                        _socialButton(
+                        socialButton(
                           FontAwesomeIcons.linkedin,
                           "LinkedIn",
                           themeColor,
-                          () => _launchURL('https://linkedin.com'),
+                          () => launchURL('https://linkedin.com'),
                         ),
                         const SizedBox(width: 20),
-                        _socialButton(
+                        socialButton(
                           FontAwesomeIcons.google,
                           "Google",
                           themeColor,
-                          () => _launchURL('https://google.com'),
+                          () => launchURL('https://google.com'),
                         ),
                       ],
                     ),
@@ -423,7 +369,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   // --- UI HELPER METHODS ---
-  Widget _buildBanner(String msg, Color color) {
+  Widget buildBanner(String msg, Color color) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 20),
@@ -456,7 +402,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildLargeText(String text, {Color color = Colors.white}) {
+  Widget buildLargeText(String text, {Color color = Colors.white}) {
     return Text(
       text,
       style: TextStyle(
@@ -469,7 +415,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildField(
+  Widget buildField(
     IconData icon,
     String hint,
     Color themeColor, {
@@ -499,7 +445,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _socialButton(
+  Widget socialButton(
     IconData icon,
     String label,
     Color themeColor,

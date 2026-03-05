@@ -455,7 +455,7 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> with SingleTicker
                       onSaved: (val) => description = val!,
                     ),
                     DropdownButtonFormField<String>(
-                      value: type,
+                      initialValue: type,
                       items: const [
                         DropdownMenuItem(value: 'Announcement', child: Text('Announcement')),
                         DropdownMenuItem(value: 'Event', child: Text('Event')),
@@ -523,7 +523,7 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> with SingleTicker
                 onSaved: (val) => description = val!,
               ),
               DropdownButtonFormField<String>(
-                value: status,
+                initialValue: status,
                 items: const [
                   DropdownMenuItem(value: 'Active', child: Text('Active')),
                   DropdownMenuItem(value: 'Draft', child: Text('Draft')),
