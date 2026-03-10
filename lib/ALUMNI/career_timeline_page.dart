@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class CareerTimelinePage extends StatefulWidget {
   const CareerTimelinePage({super.key});
@@ -8,7 +10,6 @@ class CareerTimelinePage extends StatefulWidget {
 }
 
 class _CareerTimelinePageState extends State<CareerTimelinePage> {
-  // Initial Data List
   final List<Map<String, dynamic>> _timelineEvents = [
     {
       "icon": Icons.arrow_upward,
@@ -22,7 +23,46 @@ class _CareerTimelinePageState extends State<CareerTimelinePage> {
     },
   ];
 
-  // Logic to show the Fill-up Form
+  // HTTP POST request to PHP backend
+  Future<void> _addCareerEventToBackend(Map<String, dynamic> event) async {
+    final url = Uri.parse('http://localhost:8080/alumni_api/add_career_event.php');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'title': event['title'],
+          'company': event['company'],
+          'desc': event['desc'],
+          'type': event['badge'],
+          'date': event['date'],
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final resBody = jsonDecode(response.body);
+        if (resBody['success'] == true) {
+          // Successfully added
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Event added successfully")),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Failed: ${resBody['message']}")),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Server error: ${response.statusCode}")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
+  }
+
   void _showAddEventDialog() {
     final titleController = TextEditingController();
     final companyController = TextEditingController();
@@ -40,7 +80,7 @@ class _CareerTimelinePageState extends State<CareerTimelinePage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  initialValue: selectedType,
+                  value: selectedType,
                   items: ['Job Change', 'Promotion', 'Achievement', 'Education']
                       .map((label) => DropdownMenuItem(value: label, child: Text(label)))
                       .toList(),
@@ -66,24 +106,34 @@ class _CareerTimelinePageState extends State<CareerTimelinePage> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 if (titleController.text.isNotEmpty) {
+                  final newEvent = {
+                    "icon": _getIcon(selectedType),
+                    "iconBg": _getColor(selectedType),
+                    "badge": selectedType,
+                    "badgeColor": _getColor(selectedType).withOpacity(0.7),
+                    "date": "Present",
+                    "title": titleController.text,
+                    "company": companyController.text,
+                    "desc": descController.text,
+                  };
+
+                  // Add to timeline locally
                   setState(() {
-                    _timelineEvents.insert(0, {
-                      "icon": _getIcon(selectedType),
-                      "iconBg": _getColor(selectedType),
-                      "badge": selectedType,
-                      "badgeColor": _getColor(selectedType).withOpacity(0.7),
-                      "date": "Present",
-                      "title": titleController.text,
-                      "company": companyController.text,
-                      "desc": descController.text,
-                    });
+                    _timelineEvents.insert(0, newEvent);
                   });
+
+                  // Send to backend
+                  await _addCareerEventToBackend(newEvent);
+
                   Navigator.pop(context);
                 }
               },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A0E2E), foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4A0E2E),
+                foregroundColor: Colors.white,
+              ),
               child: const Text("Add to Timeline"),
             ),
           ],
@@ -118,8 +168,6 @@ class _CareerTimelinePageState extends State<CareerTimelinePage> {
             const Text("Career Timeline", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
             const Text("Track your professional journey", style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 30),
-            
-            // Timeline Content
             Container(
               padding: const EdgeInsets.all(25),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
@@ -158,15 +206,27 @@ class _CareerTimelinePageState extends State<CareerTimelinePage> {
     );
   }
 
-  // (Include your _buildTimelineEntry helper method here from previous code)
-  Widget _buildTimelineEntry({required IconData icon, required Color iconBg, required String badge, required Color badgeColor, required String date, required String title, required String company, required String desc, bool isLast = false}) {
+  Widget _buildTimelineEntry({
+    required IconData icon,
+    required Color iconBg,
+    required String badge,
+    required Color badgeColor,
+    required String date,
+    required String title,
+    required String company,
+    required String desc,
+    bool isLast = false,
+  }) {
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Column(
             children: [
-              Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle), child: Icon(icon, color: Colors.white, size: 20)),
+              Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+                  child: Icon(icon, color: Colors.white, size: 20)),
               if (!isLast) Expanded(child: Container(width: 2, color: Colors.indigo.shade100)),
             ],
           ),
@@ -175,12 +235,18 @@ class _CareerTimelinePageState extends State<CareerTimelinePage> {
             child: Container(
               margin: const EdgeInsets.only(bottom: 20),
               padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+              decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.shade200)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: badgeColor, borderRadius: BorderRadius.circular(20)), child: Text(badge, style: const TextStyle(color: Colors.white, fontSize: 11))),
+                    Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(color: badgeColor, borderRadius: BorderRadius.circular(20)),
+                        child: Text(badge, style: const TextStyle(color: Colors.white, fontSize: 11))),
                     const SizedBox(width: 10),
                     Text(date, style: const TextStyle(color: Colors.grey, fontSize: 12)),
                   ]),
