@@ -20,10 +20,10 @@ class AlumniDashboard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             /// GREETING
-            const Text(
-              "Welcome back, Maria!",
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
+            Text(
+  "Welcome back, ${user['name']}!",
+  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+),
             const SizedBox(height: 4),
             const Text(
               "Here's an overview of your alumni profile and activities",
@@ -204,23 +204,26 @@ class AlumniDashboard extends StatelessWidget {
 }
 
 void _navigateToTracer(BuildContext context) {
-  final program = this.user['program'] ?? "";
+  final program = user['program'] ?? "";
 
   Widget? page;
 
   switch (program) {
     case "BSSW":
-      page = BSSWTracerPage();
+      page = BSSWTracerPage(userId: user['id']); // ✅ FIXED
       break;
+
     case "BSIT":
-      page = BSITTracerPage();
+      page = BSITTracerPage(userId: user['id']);
       break;
+
     default:
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Program not recognized")),
       );
       return;
   }
+
 
   Navigator.push(
     context,

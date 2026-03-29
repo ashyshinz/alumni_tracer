@@ -29,12 +29,12 @@ class _AlumniMainLayoutState extends State<AlumniMainLayout> {
   void initState() {
     super.initState();
     _pages = [
-      AlumniDashboard(user: widget.user),
-      const ProfilePage(),
-      const AnnouncementPage(),
-      const SettingsPage(),
-      BSSWTracerPage(), 
-      BSITTracerPage(),
+  AlumniDashboard(user: widget.user),
+  const ProfilePage(),
+  const AnnouncementPage(),
+  const SettingsPage(),
+  BSSWTracerPage(userId: widget.user['id']),
+  BSITTracerPage(userId: widget.user['id']),
 ];
   
   }
