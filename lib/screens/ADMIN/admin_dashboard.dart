@@ -9,16 +9,16 @@ import '../../state/user_store.dart';
 
 class AdminDashboard extends StatefulWidget {
   final Function(int) onActionSelected;
-  final VoidCallback onViewAll;
-  final VoidCallback onViewAllUsers; // 🔥 Add this line
-  final Map<String, dynamic> user; // ✅ Add user data
+  final VoidCallback onOpenRecentActivity;
+  final VoidCallback onOpenLatestUsers;
+  final Map<String, dynamic> user;
 
   const AdminDashboard({
     super.key,
     required this.onActionSelected,
-    required this.onViewAll,
-    required this.onViewAllUsers, // ✅ REQUIRED
-    required this.user, // ✅ REQUIRED
+    required this.onOpenRecentActivity,
+    required this.onOpenLatestUsers,
+    required this.user,
   });
 
   @override
@@ -93,9 +93,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     }
 
     try {
-      final response = await http.get(
-        ApiService.uri('get_admin_stats.php'),
-      );
+      final response = await http.get(ApiService.uri('get_admin_stats.php'));
 
       if (!mounted) return;
 
@@ -129,53 +127,74 @@ class _AdminDashboardState extends State<AdminDashboard> {
       );
     }
 
-    return Column(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
-            child: _buildDashboardContent(),
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final contentWidth = constraints.maxWidth;
+        return Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  contentWidth < 600 ? 16 : 32,
+                  24,
+                  contentWidth < 600 ? 16 : 32,
+                  32,
+                ),
+                child: _buildDashboardContent(contentWidth),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildDashboardContent() {
+  Widget _buildDashboardContent(double contentWidth) {
+    final isNarrow = contentWidth < 900;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // ✅ UPDATED HEADER WITH REFRESH BUTTON & DYNAMIC NAME
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ValueListenableBuilder<Map<String, dynamic>?>(
-                  valueListenable: UserStore.currentUser,
-                  builder: (context, liveUser, _) {
-                    final name = (liveUser?['name'] ?? widget.user['name'] ?? 'Admin')
-                        .toString()
-                        .trim();
-                    return Text(
-                      "Welcome back, ${name.isEmpty ? 'Admin' : name}!",
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: primaryMaroon,
-                      ),
-                    );
-                  },
-                ),
-                Text(
-                  "Here's what's happening with the alumni portal today.",
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
-                ),
-              ],
+            SizedBox(
+              width: isNarrow ? double.infinity : 520,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ValueListenableBuilder<Map<String, dynamic>?>(
+                    valueListenable: UserStore.currentUser,
+                    builder: (context, liveUser, _) {
+                      final name =
+                          (liveUser?['name'] ?? widget.user['name'] ?? 'Admin')
+                              .toString()
+                              .trim();
+                      return Text(
+                        "Welcome back, ${name.isEmpty ? 'Admin' : name}!",
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: primaryMaroon,
+                        ),
+                      );
+                    },
+                  ),
+                  Text(
+                    "Here's what's happening with the alumni portal today.",
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                  ),
+                ],
+              ),
             ),
 
-            Row(
+            Wrap(
+              spacing: 16,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text(
                   _currentDate,
@@ -207,31 +226,37 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
         const SizedBox(height: 32),
 
-        Row(
+        Wrap(
+          spacing: 16,
+          runSpacing: 16,
           children: [
             _buildStatCard(
               "Total Alumni",
               liveStats['total_alumni'].toString(),
               Icons.people_outline,
               Colors.blue,
+              contentWidth,
             ),
             _buildStatCard(
               "Pending Verification",
               liveStats['pending_users'].toString(),
               Icons.hourglass_top,
               Colors.red,
+              contentWidth,
             ),
             _buildStatCard(
               "Tracer Submissions",
               liveStats['tracer_submissions'].toString(),
               Icons.assignment_outlined,
               Colors.green,
+              contentWidth,
             ),
             _buildStatCard(
               "Employment Rate",
               "${liveStats['employment_rate']}%",
               Icons.trending_up,
               accentGold,
+              contentWidth,
             ),
           ],
         ),
@@ -249,7 +274,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           runSpacing: 16,
           children: [
             _actionButton("View Pending Users", Icons.verified_user, 3),
-            _actionButton("View Tracer Data", Icons.analytics, 2),
+            _actionButton("Tracer Governance", Icons.analytics, 2),
             _actionButton("Manage Announcements", Icons.campaign, 4),
             _actionButton("Generate Reports", Icons.picture_as_pdf, 2),
           ],
@@ -257,37 +282,50 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
         const SizedBox(height: 32),
 
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 2,
-              child: _buildChartContainer(
+        if (isNarrow)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildChartContainer(
                 "Employment Rate per Batch",
                 child: _barChart(),
               ),
-            ),
-            const SizedBox(width: 24),
-            Expanded(
-              flex: 1,
-              child: _buildChartContainer(
-                "Industry Distribution",
-                child: _pieChart(),
+              const SizedBox(height: 24),
+              _buildChartContainer("Industry Distribution", child: _pieChart()),
+            ],
+          )
+        else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: _buildChartContainer(
+                  "Employment Rate per Batch",
+                  child: _barChart(),
+                ),
               ),
-            ),
-          ],
-        ),
+              const SizedBox(width: 24),
+              Expanded(
+                flex: 1,
+                child: _buildChartContainer(
+                  "Industry Distribution",
+                  child: _pieChart(),
+                ),
+              ),
+            ],
+          ),
 
         const SizedBox(height: 32),
 
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _buildDataContainer(
+        if (isNarrow)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDataContainer(
                 "Recent Activity",
                 onViewAll: () {
-                  widget.onViewAll();
+                  widget.onOpenRecentActivity();
                 },
                 child: Column(
                   children: activities.isEmpty
@@ -298,31 +336,23 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           ),
                         ]
                       : activities.take(5).map((act) {
-                          // ✅ LIMIT TO 5 HERE
-
                           return _activityItem(
                             act['title'] ?? "Unknown",
                             act['time'] ?? "",
                             act['type'] ?? "Tracer",
                             () {
-                              widget.onViewAll();
+                              widget.onOpenRecentActivity();
                             },
                           );
                         }).toList(),
                 ),
               ),
-            ),
-            const SizedBox(width: 24),
-            Expanded(
-              child: _buildDataContainer(
+              const SizedBox(height: 24),
+              _buildDataContainer(
                 "Latest Registrations",
-                // ✅ ADD THIS → makes the "View All" button appear
                 onViewAll: () {
-                  widget.onActionSelected(
-                    7,
-                  ); // This only calls the function when the button is CLICKED
+                  widget.onOpenLatestUsers();
                 },
-
                 child: Column(
                   children: latestUsers.isEmpty
                       ? [
@@ -339,15 +369,77 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                 user['course'] ?? 'N/A',
                                 user['status'] ?? 'Pending',
                                 user['email'] ?? 'No Email',
-                                user['year'] ?? 'N/A', //
+                                user['year'] ?? 'N/A',
                               ),
                             )
                             .toList(),
                 ),
               ),
-            ),
-          ],
-        ),
+            ],
+          )
+        else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _buildDataContainer(
+                  "Recent Activity",
+                  onViewAll: () {
+                    widget.onOpenRecentActivity();
+                  },
+                  child: Column(
+                    children: activities.isEmpty
+                        ? [
+                            const Padding(
+                              padding: EdgeInsets.all(20.0),
+                              child: Text("No recent activity"),
+                            ),
+                          ]
+                        : activities.take(5).map((act) {
+                            return _activityItem(
+                              act['title'] ?? "Unknown",
+                              act['time'] ?? "",
+                              act['type'] ?? "Tracer",
+                              () {
+                                widget.onOpenRecentActivity();
+                              },
+                            );
+                          }).toList(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 24),
+              Expanded(
+                child: _buildDataContainer(
+                  "Latest Registrations",
+                  onViewAll: () {
+                    widget.onOpenLatestUsers();
+                  },
+                  child: Column(
+                    children: latestUsers.isEmpty
+                        ? [
+                            const Padding(
+                              padding: EdgeInsets.all(20),
+                              child: Text("No new registrations"),
+                            ),
+                          ]
+                        : latestUsers
+                              .take(3)
+                              .map(
+                                (user) => _regItem(
+                                  user['name'] ?? 'Unknown',
+                                  user['course'] ?? 'N/A',
+                                  user['status'] ?? 'Pending',
+                                  user['email'] ?? 'No Email',
+                                  user['year'] ?? 'N/A',
+                                ),
+                              )
+                              .toList(),
+                  ),
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }
@@ -359,10 +451,17 @@ class _AdminDashboardState extends State<AdminDashboard> {
     String value,
     IconData icon,
     Color color,
+    double contentWidth,
   ) {
-    return Expanded(
+    return SizedBox(
+      width: contentWidth < 700
+          ? double.infinity
+          : contentWidth >= 1180
+          ? (contentWidth - 48) / 4
+          : contentWidth >= 760
+          ? (contentWidth - 16) / 2
+          : double.infinity,
       child: Container(
-        margin: const EdgeInsets.only(right: 16),
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -372,18 +471,44 @@ class _AdminDashboardState extends State<AdminDashboard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Icon(icon, color: color),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < 110;
+                if (isCompact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(icon, color: color),
+                      const SizedBox(height: 8),
+                      Text(
+                        value,
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  );
+                }
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        value,
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(icon, color: color),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 8),
             Text(label, style: TextStyle(color: Colors.grey.shade600)),
@@ -409,7 +534,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   Widget _buildChartContainer(String title, {required Widget child}) {
     return Container(
-      height: 400,
+      height: MediaQuery.of(context).size.width < 700 ? 340 : 400,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -445,9 +570,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Updated Header Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
                 title,
@@ -532,6 +659,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         : Colors.orange;
 
     final Color primaryMaroon = const Color(0xFF4A152C);
+    final isCompact = MediaQuery.of(context).size.width < 560;
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(
@@ -564,23 +692,43 @@ class _AdminDashboardState extends State<AdminDashboard> {
             email,
             style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
           ),
+          if (isCompact) ...[
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                status.toLowerCase(),
+                style: TextStyle(
+                  color: statusColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: statusColor.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(
-          status.toLowerCase(),
-          style: TextStyle(
-            color: statusColor,
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
+      trailing: isCompact
+          ? null
+          : Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                status.toLowerCase(),
+                style: TextStyle(
+                  color: statusColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
     );
   }
 
@@ -763,6 +911,256 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ),
           ),
       ],
+    );
+  }
+}
+
+class RecentActivityPage extends StatefulWidget {
+  final List<dynamic> activities;
+  final bool isLoading;
+  final VoidCallback onBack;
+  final Future<void> Function() onRefresh;
+
+  const RecentActivityPage({
+    super.key,
+    required this.activities,
+    required this.isLoading,
+    required this.onBack,
+    required this.onRefresh,
+  });
+
+  @override
+  State<RecentActivityPage> createState() => _RecentActivityPageState();
+}
+
+class _RecentActivityPageState extends State<RecentActivityPage> {
+  final Color primaryMaroon = const Color(0xFF4A152C);
+  final Color bgLight = const Color(0xFFF8F9FA);
+
+  final TextEditingController _searchController = TextEditingController();
+  List<dynamic> _filteredActivities = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _filteredActivities = widget.activities;
+    _searchController.addListener(_filterActivities);
+  }
+
+  void _filterActivities() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredActivities = widget.activities.where((act) {
+        final title = (act['title'] ?? "").toString().toLowerCase();
+        final type = (act['type'] ?? "").toString().toLowerCase();
+        return title.contains(query) || type.contains(query);
+      }).toList();
+    });
+  }
+
+  @override
+  void didUpdateWidget(RecentActivityPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.activities != widget.activities) {
+      _filterActivities();
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isNarrow = screenWidth < 700;
+
+    return Container(
+      color: bgLight,
+      padding: EdgeInsets.all(isNarrow ? 16.0 : 32.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (isNarrow)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+                  onPressed: widget.onBack,
+                  color: primaryMaroon,
+                ),
+                Text(
+                  "Full Activity Log",
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: primaryMaroon,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: widget.onRefresh,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text("Refresh Log"),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: primaryMaroon,
+                      minimumSize: const Size(0, 48),
+                      side: BorderSide(
+                        color: primaryMaroon.withValues(alpha: 0.18),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+                  onPressed: widget.onBack,
+                  color: primaryMaroon,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    "Full Activity Log",
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: primaryMaroon,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: widget.onRefresh,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text("Refresh Log"),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: primaryMaroon,
+                    minimumSize: const Size(0, 48),
+                    side: BorderSide(
+                      color: primaryMaroon.withValues(alpha: 0.18),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          const SizedBox(height: 8),
+          Text(
+            "Viewing all recent system updates and alumni interactions.",
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+          ),
+          const SizedBox(height: 24),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: "Search by alumni name or activity type...",
+                prefixIcon: Icon(Icons.search, color: primaryMaroon),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () => _searchController.clear(),
+                      )
+                    : null,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: widget.onRefresh,
+              color: primaryMaroon,
+              child: widget.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _filteredActivities.isEmpty
+                  ? ListView(
+                      children: [
+                        const SizedBox(height: 100),
+                        Center(
+                          child: Text(
+                            _searchController.text.isEmpty
+                                ? "No activity history found."
+                                : "No results matching \"${_searchController.text}\"",
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      itemCount: _filteredActivities.length,
+                      separatorBuilder: (context, index) =>
+                          const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final act = _filteredActivities[index];
+
+                        IconData icon = Icons.edit_note;
+                        if (act['type'] == 'Tracer') {
+                          icon = Icons.description_outlined;
+                        } else if (act['type'] == 'Announcement') {
+                          icon = Icons.campaign;
+                        } else if (act['type'] == 'Verification') {
+                          icon = Icons.verified_user;
+                        }
+
+                        return ListTile(
+                          contentPadding: EdgeInsets.symmetric(
+                            vertical: 8,
+                            horizontal: isNarrow ? 0 : 4,
+                          ),
+                          leading: CircleAvatar(
+                            backgroundColor: primaryMaroon.withValues(
+                              alpha: 0.1,
+                            ),
+                            child: Icon(icon, color: primaryMaroon, size: 20),
+                          ),
+                          title: Text(
+                            act['title'] ?? "Activity",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                          subtitle: Text(
+                            "${act['time']} - ${act['type']}",
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          trailing: isNarrow
+                              ? null
+                              : Icon(
+                                  Icons.chevron_right,
+                                  color: Colors.grey.shade400,
+                                  size: 18,
+                                ),
+                          onTap: () {},
+                        );
+                      },
+                    ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

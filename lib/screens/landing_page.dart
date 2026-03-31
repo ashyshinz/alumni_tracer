@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'login_screen.dart';
 import 'register_screen.dart';
-import '../services/api_service.dart';
 import '../services/content_service.dart';
+import '../state/user_store.dart';
 
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
@@ -28,11 +26,6 @@ class _LandingPageState extends State<LandingPage>
   final GlobalKey _statsKey = GlobalKey();
   final GlobalKey _aboutKey = GlobalKey();
   final GlobalKey _contactKey = GlobalKey();
-
-  // ✅ CONTACT FORM
-  final _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _messageController = TextEditingController();
 
   List<Map<String, dynamic>> announcements = [];
   List<Map<String, dynamic>> jobs = [];
@@ -80,8 +73,6 @@ class _LandingPageState extends State<LandingPage>
   @override
   void dispose() {
     _scrollController.dispose();
-    _emailController.dispose();
-    _messageController.dispose();
     _heroAnimationController.dispose();
     super.dispose();
   }
@@ -211,79 +202,18 @@ class _LandingPageState extends State<LandingPage>
   }
 
   bool _isUserLoggedIn() {
-    // TODO: Check shared preferences or session for user token
-    // For now, return false to require login
-    return false;
-  }
-
-  Future<void> _submitContactForm() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    try {
-      final response = await http.post(
-        ApiService.uri('submit_contact.php'),
-        headers: <String, String>{
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: <String, String>{
-          'email': _emailController.text,
-          'message': _messageController.text,
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final jsonResponse = jsonDecode(response.body);
-        if (jsonResponse['success'] == true) {
-          if (!mounted) return;
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                "Message sent successfully! We'll get back to you soon.",
-              ),
-              duration: Duration(seconds: 3),
-              backgroundColor: Colors.green,
-            ),
-          );
-          _emailController.clear();
-          _messageController.clear();
-        } else {
-          _showErrorSnackBar(
-            jsonResponse['message'] ?? "Failed to send message",
-          );
-        }
-      } else {
-        _showErrorSnackBar("Server error: ${response.statusCode}");
-      }
-    } catch (e) {
-      _showErrorSnackBar("Connection error: $e");
-      debugPrint("Contact form submission error: $e");
-    }
-  }
-
-  void _showErrorSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 3),
-        backgroundColor: Colors.red,
-      ),
-    );
+    return UserStore.value != null;
   }
 
   @override
   Widget build(BuildContext context) {
-    bool isMobile = MediaQuery.of(context).size.width < 950;
-    bool isTablet =
-        MediaQuery.of(context).size.width >= 950 &&
-        MediaQuery.of(context).size.width < 1200;
+    final screenWidth = MediaQuery.of(context).size.width;
+    bool isTablet = screenWidth >= 950 && screenWidth < 1200;
+    final useDrawerNavigation = screenWidth < 1180;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      endDrawer: isMobile ? _buildMobileDrawer() : null,
+      endDrawer: useDrawerNavigation ? _buildMobileDrawer() : null,
       body: Stack(
         children: [
           RefreshIndicator(
@@ -305,7 +235,7 @@ class _LandingPageState extends State<LandingPage>
               ),
             ),
           ),
-          _buildModernHeader(isMobile, isTablet),
+          _buildModernHeader(useDrawerNavigation, isTablet),
         ],
       ),
     );
@@ -313,10 +243,16 @@ class _LandingPageState extends State<LandingPage>
 
   // ================= MODERN HEADER =================
   Widget _buildModernHeader(bool isMobile, bool isTablet) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final horizontalPadding = screenWidth < 640
+        ? 16.0
+        : screenWidth < 1000
+        ? 24.0
+        : 40.0;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       height: 80,
-      padding: const EdgeInsets.symmetric(horizontal: 40),
+      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.centerLeft,
@@ -348,24 +284,14 @@ class _LandingPageState extends State<LandingPage>
           // Logo Section
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: ClipOval(
-                  child: Image.asset(
-                    'assets/jmclogo.png',
-                    height: 40, // Adjusted to fit nicely in the 80h header
-                    width: 40,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      // Fallback in case the file path is wrong
-                      return Icon(Icons.school, color: accentGold);
-                    },
-                  ),
-                ),
+              Image.asset(
+                'assets/jmclogo.png',
+                height: 52,
+                width: 52,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  return Icon(Icons.school, color: accentGold, size: 38);
+                },
               ),
               const SizedBox(width: 12),
               const Text(
@@ -374,8 +300,9 @@ class _LandingPageState extends State<LandingPage>
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
                   fontSize: 18,
-                  letterSpacing: 1.2,
+                  letterSpacing: 0.8,
                 ),
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -1581,7 +1508,8 @@ class _LandingPageState extends State<LandingPage>
                   _buildStatCard(
                     value: "Links",
                     title: "Industry Linkages",
-                    subtitle: "Connections with partner organizations and offices",
+                    subtitle:
+                        "Connections with partner organizations and offices",
                     icon: Icons.business,
                     color: Colors.blue.shade400,
                   ),
@@ -1595,7 +1523,8 @@ class _LandingPageState extends State<LandingPage>
                   _buildStatCard(
                     value: "Forms",
                     title: "Tracer Study",
-                    subtitle: "Collecting graduate information for future reports",
+                    subtitle:
+                        "Collecting graduate information for future reports",
                     icon: Icons.sentiment_satisfied,
                     color: Colors.orange.shade400,
                   ),
@@ -1609,14 +1538,16 @@ class _LandingPageState extends State<LandingPage>
                   _buildStatCard(
                     value: "Events",
                     title: "Alumni Activities",
-                    subtitle: "Support for seminars, fairs, and engagement programs",
+                    subtitle:
+                        "Support for seminars, fairs, and engagement programs",
                     icon: Icons.category,
                     color: Colors.indigo.shade400,
                   ),
                   _buildStatCard(
                     value: "Goals",
                     title: "Future Insights",
-                    subtitle: "Data gathered over time will guide alumni programs",
+                    subtitle:
+                        "Data gathered over time will guide alumni programs",
                     icon: Icons.verified,
                     color: Colors.green.shade600,
                   ),
@@ -2021,7 +1952,7 @@ class _LandingPageState extends State<LandingPage>
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  "We'd Love to Hear From You",
+                  "Contact The Alumni Office",
                   style: TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.w800,
@@ -2032,7 +1963,7 @@ class _LandingPageState extends State<LandingPage>
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  "Have a question or want to discuss alumni opportunities? Reach out to us directly and we'll get back to you as soon as possible.",
+                  "This portal does not receive messages directly. Please use the contact details below to reach the alumni office manually for records, tracer, events, and account concerns.",
                   style: TextStyle(
                     fontSize: 18,
                     color: Colors.white.withValues(alpha: 0.9),
@@ -2046,190 +1977,135 @@ class _LandingPageState extends State<LandingPage>
 
           const SizedBox(height: 60),
 
-          // Form Container
-          Form(
-            key: _formKey,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return Container(
-                  constraints: const BoxConstraints(maxWidth: 600),
-                  padding: const EdgeInsets.all(40),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.95),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.15),
-                        blurRadius: 30,
-                        offset: const Offset(0, 10),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 760;
+              final cards = [
+                _buildContactCard(
+                  icon: Icons.mail_outline,
+                  title: "General Inquiries",
+                  primary: "alumni.office@jmcalumni.edu",
+                  secondary:
+                      "Temporary email for alumni concerns and portal assistance",
+                ),
+                _buildContactCard(
+                  icon: Icons.phone_outlined,
+                  title: "Office Phone",
+                  primary: "(032) 123-4567",
+                  secondary: "Monday to Friday, 8:00 AM - 5:00 PM",
+                ),
+                _buildContactCard(
+                  icon: Icons.location_on_outlined,
+                  title: "Campus Office",
+                  primary: "JMC Alumni Relations Office",
+                  secondary:
+                      "Temporary Address: 123 Alumni Avenue, Mandaue City",
+                ),
+                _buildContactCard(
+                  icon: Icons.public_outlined,
+                  title: "Facebook Page",
+                  primary: "facebook.com/jmcalumnioffice",
+                  secondary: "For announcements, office updates, and events",
+                ),
+              ];
+
+              return Container(
+                constraints: const BoxConstraints(maxWidth: 860),
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 30,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: isCompact
+                    ? Column(
+                        children: cards
+                            .map(
+                              (card) => Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: card,
+                              ),
+                            )
+                            .toList(),
+                      )
+                    : Wrap(
+                        spacing: 16,
+                        runSpacing: 16,
+                        children: cards
+                            .map(
+                              (card) => SizedBox(
+                                width: (constraints.maxWidth - 16) / 2,
+                                child: card,
+                              ),
+                            )
+                            .toList(),
                       ),
-                    ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContactCard({
+    required IconData icon,
+    required String title,
+    required String primary,
+    required String secondary,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: lightMaroon,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: cardShadow),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: primaryMaroon.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: primaryMaroon),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: primaryMaroon,
                   ),
-                  child: Column(
-                    children: [
-                      // Email Field
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Email Address",
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: primaryMaroon,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextFormField(
-                            controller: _emailController,
-                            style: const TextStyle(fontSize: 16),
-                            decoration: InputDecoration(
-                              hintText: "your.email@example.com",
-                              hintStyle: TextStyle(color: Colors.grey.shade400),
-                              filled: true,
-                              fillColor: Colors.grey.shade50,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 14,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade200,
-                                ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade200,
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: primaryMaroon,
-                                  width: 2,
-                                ),
-                              ),
-                            ),
-                            validator: (v) => v != null && v.contains('@')
-                                ? null
-                                : "Please enter a valid email",
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // Message Field
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Your Message",
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: primaryMaroon,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextFormField(
-                            controller: _messageController,
-                            maxLines: 5,
-                            style: const TextStyle(fontSize: 16),
-                            decoration: InputDecoration(
-                              hintText:
-                                  "Tell us about your inquiry or feedback...",
-                              hintStyle: TextStyle(color: Colors.grey.shade400),
-                              filled: true,
-                              fillColor: Colors.grey.shade50,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 14,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade200,
-                                ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade200,
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: primaryMaroon,
-                                  width: 2,
-                                ),
-                              ),
-                            ),
-                            validator: (v) =>
-                                v!.isEmpty ? "Please enter a message" : null,
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      // Submit Button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _submitContactForm(),
-                          icon: const Icon(Icons.send),
-                          label: const Text(
-                            "SEND MESSAGE",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryMaroon,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            elevation: 4,
-                            shadowColor: primaryMaroon.withValues(alpha: 0.3),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // Contact Info
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.mail_outline,
-                            size: 16,
-                            color: primaryMaroon,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            "support@alumni.edu",
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  primary,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
                   ),
-                );
-              },
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  secondary,
+                  style: TextStyle(fontSize: 13, height: 1.5, color: lightText),
+                ),
+              ],
             ),
           ),
         ],

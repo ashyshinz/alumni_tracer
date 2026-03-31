@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS users (
     status VARCHAR(50) NOT NULL DEFAULT 'pending',
     program VARCHAR(50) NULL,
     year_graduated VARCHAR(10) NULL,
+    linkedin_sub VARCHAR(255) NULL,
+    linkedin_email VARCHAR(255) NULL,
+    auth_provider VARCHAR(50) NULL,
+    linkedin_linked_at DATETIME NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-

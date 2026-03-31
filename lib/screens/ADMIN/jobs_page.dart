@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -13,8 +14,10 @@ class JobsPage extends StatefulWidget {
 
 class _JobsPageState extends State<JobsPage> {
   final Color primaryMaroon = const Color(0xFF4A152C);
-  final Color bgLight = const Color(0xFFF8F9FA);
-  final Color borderColor = const Color(0xFFE0E0E0);
+  final Color accentGold = const Color(0xFFC5A046);
+  final Color bgLight = const Color(0xFFF7F8FA);
+  final Color borderColor = const Color(0xFFE5E7EB);
+  final Color softRose = const Color(0xFFF8F1F4);
 
   bool isLoading = false;
   bool isSaving = false;
@@ -26,12 +29,11 @@ class _JobsPageState extends State<JobsPage> {
     fetchJobs();
   }
 
-  /// FETCH DATA
   Future<void> fetchJobs() async {
     setState(() => isLoading = true);
     try {
-      var url = ApiService.uri('get_jobs.php');
-      var response = await http.get(url);
+      final url = ApiService.uri('get_jobs.php');
+      final response = await http.get(url);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -45,7 +47,6 @@ class _JobsPageState extends State<JobsPage> {
     setState(() => isLoading = false);
   }
 
-  /// SAVE (CREATE / UPDATE)
   Future<bool> saveJob(
     String title,
     String description,
@@ -76,44 +77,28 @@ class _JobsPageState extends State<JobsPage> {
         }),
       );
 
-      debugPrint("SERVER RAW OUTPUT: ${response.body}");
-
       if (response.statusCode == 200) {
-        try {
-          final result = jsonDecode(response.body);
+        final result = jsonDecode(response.body);
 
-          if (result['status'] == 'success') {
-            await fetchJobs();
+        if (result['status'] == 'success') {
+          await fetchJobs();
 
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("✅ Job posted successfully"),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
-
-            setState(() => isSaving = false);
-            return true;
-          } else {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    "❌ Error: ${result['message'] ?? 'Unknown error'}",
-                  ),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
-        } catch (e) {
-          debugPrint("JSON Parse Error: $e");
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text("❌ Server response error"),
+                content: Text("Job posted successfully"),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+
+          setState(() => isSaving = false);
+          return true;
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("Error: ${result['message'] ?? 'Unknown error'}"),
                 backgroundColor: Colors.red,
               ),
             );
@@ -123,7 +108,7 @@ class _JobsPageState extends State<JobsPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text("❌ HTTP Error: ${response.statusCode}"),
+              content: Text("HTTP Error: ${response.statusCode}"),
               backgroundColor: Colors.red,
             ),
           );
@@ -134,7 +119,7 @@ class _JobsPageState extends State<JobsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("❌ Network error. Check connection."),
+            content: Text("Network error. Check connection."),
             backgroundColor: Colors.red,
           ),
         );
@@ -145,7 +130,6 @@ class _JobsPageState extends State<JobsPage> {
     return false;
   }
 
-  /// DELETE
   Future<void> deleteJob(String id) async {
     final url = ApiService.uri('delete_job.php');
 
@@ -163,7 +147,7 @@ class _JobsPageState extends State<JobsPage> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text("🗑️ Job deleted successfully"),
+                content: Text("Job deleted successfully"),
                 backgroundColor: Colors.green,
               ),
             );
@@ -177,19 +161,33 @@ class _JobsPageState extends State<JobsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.of(context).size.width < 720;
     return Container(
       color: bgLight,
-      width: double.infinity,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFF7F8FA), Color(0xFFF4F1F2)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(
+            isCompact ? 16 : 24,
+            isCompact ? 16 : 24,
+            isCompact ? 16 : 24,
+            32,
+          ),
           children: [
             _buildHeader(),
             const SizedBox(height: 24),
-            _buildAddButton(),
-            const SizedBox(height: 32),
-            _buildJobsList(),
+            _buildQuickStats(),
+            const SizedBox(height: 24),
+            if (isLoading)
+              Center(child: CircularProgressIndicator(color: primaryMaroon))
+            else
+              _buildJobsList(),
           ],
         ),
       ),
@@ -197,148 +195,506 @@ class _JobsPageState extends State<JobsPage> {
   }
 
   Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Job Opportunities Management",
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: primaryMaroon,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              "Post and manage job opportunities for alumni",
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
-            ),
-          ],
+    final isStacked = MediaQuery.of(context).size.width < 860;
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [primaryMaroon, primaryMaroon.withValues(alpha: 0.88)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        OutlinedButton.icon(
-          onPressed: fetchJobs,
-          icon: const Icon(Icons.refresh),
-          label: const Text("Refresh"),
-          style: OutlinedButton.styleFrom(foregroundColor: primaryMaroon),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: primaryMaroon.withValues(alpha: 0.18),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: isStacked
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Icon(
+                    Icons.cases_outlined,
+                    color: accentGold,
+                    size: 34,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  "Job Opportunities Management",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "Post and manage alumni openings with the same polished visual style used on the alumni jobs page.",
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.82),
+                    height: 1.5,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: fetchJobs,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.30),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: const Text("Refresh"),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () => _showJobDialog(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: accentGold,
+                        foregroundColor: Colors.black87,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text("Post New Job"),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Icon(
+                    Icons.cases_outlined,
+                    color: accentGold,
+                    size: 34,
+                  ),
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Job Opportunities Management",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Post and manage alumni openings with the same polished visual style used on the alumni jobs page.",
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.82),
+                          height: 1.5,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: fetchJobs,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.30),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: const Text("Refresh"),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () => _showJobDialog(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: accentGold,
+                        foregroundColor: Colors.black87,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text("Post New Job"),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildQuickStats() {
+    final withSalary = jobs
+        .where((job) => (job['salary'] ?? '').toString().trim().isNotEmpty)
+        .length;
+    final withLocation = jobs
+        .where((job) => (job['location'] ?? '').toString().trim().isNotEmpty)
+        .length;
+
+    return Wrap(
+      spacing: 16,
+      runSpacing: 16,
+      children: [
+        _statCard(
+          "Open Roles",
+          jobs.length.toString(),
+          Icons.work_outline,
+          primaryMaroon,
+        ),
+        _statCard(
+          "With Salary Info",
+          withSalary.toString(),
+          Icons.payments_outlined,
+          accentGold,
+        ),
+        _statCard(
+          "With Location",
+          withLocation.toString(),
+          Icons.location_on_outlined,
+          Colors.teal,
         ),
       ],
     );
   }
 
-  Widget _buildAddButton() {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: ElevatedButton.icon(
-        onPressed: () => _showJobDialog(),
-        icon: const Icon(Icons.add),
-        label: const Text("Post New Job"),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: primaryMaroon,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        ),
+  Widget _statCard(String label, String value, IconData icon, Color color) {
+    return Container(
+      width: MediaQuery.of(context).size.width < 700 ? double.infinity : 220,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: color.withValues(alpha: 0.12),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildJobsList() {
-    if (isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
     if (jobs.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(50.0),
-          child: Text("No jobs posted yet."),
-        ),
-      );
+      return _buildEmptyState();
     }
 
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: jobs.length,
-      itemBuilder: (context, index) {
-        final job = jobs[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 16),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
+    return Column(
+      children: jobs.asMap().entries.map((entry) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 18),
+          child: _buildJobCard(entry.value, entry.key),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildJobCard(dynamic job, int index) {
+    final title = (job['title'] ?? "No Title").toString();
+    final company = (job['company'] ?? "Company not specified").toString();
+    final description = (job['description'] ?? "No Description").toString();
+    final location = (job['location'] ?? "Location not specified").toString();
+    final salary = (job['salary'] ?? "Salary not specified").toString();
+    final datePosted = (job['date_posted'] ?? 'Unknown').toString();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        job['title'] ?? "No Title",
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        primaryMaroon.withValues(alpha: 0.95),
+                        const Color(0xFF7B2E4B),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Center(
+                    child: Text(
+                      company.isNotEmpty
+                          ? company.substring(0, 1).toUpperCase()
+                          : 'J',
+                      style: TextStyle(
+                        color: accentGold,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 22,
                       ),
                     ),
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blue),
-                          onPressed: () => _showJobDialog(job: job),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _confirmDelete(job['id'].toString()),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  job['company'] ?? "No Company",
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: primaryMaroon,
-                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  job['description'] ?? "No Description",
-                  style: const TextStyle(fontSize: 14),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: primaryMaroon,
+                                height: 1.2,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: accentGold.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              "Manage",
+                              style: TextStyle(
+                                color: primaryMaroon,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        company,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(width: 8),
                 Row(
                   children: [
-                    Icon(Icons.location_on, size: 16, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text(
-                      job['location'] ?? "Not specified",
-                      style: const TextStyle(color: Colors.grey),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, color: Colors.blue),
+                      onPressed: () => _showJobDialog(job: job),
                     ),
-                    const SizedBox(width: 16),
-                    Icon(Icons.attach_money, size: 16, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text(
-                      job['salary'] ?? "Not specified",
-                      style: const TextStyle(color: Colors.grey),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      onPressed: () => _confirmDelete(job['id'].toString()),
                     ),
                   ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "Posted: ${job['date_posted'] ?? 'Unknown'}",
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
             ),
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _metaPill(Icons.location_on_outlined, location),
+                _metaPill(Icons.payments_outlined, salary),
+                _metaPill(Icons.schedule_outlined, "Posted $datePosted"),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              description,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade700,
+                height: 1.55,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              "Opportunity ${index + 1}",
+              style: TextStyle(
+                color: Colors.grey.shade500,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _metaPill(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: primaryMaroon),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        );
-      },
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Container(
+        width: MediaQuery.of(context).size.width < 500
+            ? MediaQuery.of(context).size.width - 32
+            : 420,
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: borderColor),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: softRose,
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Icon(
+                Icons.work_off_outlined,
+                color: primaryMaroon,
+                size: 34,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              "No jobs posted yet",
+              style: TextStyle(
+                color: primaryMaroon,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Create your first posting and it will appear here in the updated jobs layout.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade600, height: 1.5),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -439,6 +795,8 @@ class _JobsPageState extends State<JobsPage> {
                       contactEmailController.text,
                       id: job?['id']?.toString(),
                     );
+
+                    if (!context.mounted) return;
 
                     if (success) {
                       Navigator.pop(context);

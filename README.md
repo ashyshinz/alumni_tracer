@@ -27,7 +27,6 @@ Your `alumni_php` folder should contain the endpoints used by the app (examples)
 - `login.php`
 - `register.php`
 - `get_announcements.php`
-- `get_jobs.php` / `get_job.php`
-- `submit_contact.php`
+- `get_jobs.php` (`get_job.php` may remain as a compatibility alias)
 
 Start XAMPP (Apache + MySQL), then run the Flutter app.

@@ -1,10 +1,8 @@
-import 'dart:convert';
-
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
-import '../../services/api_service.dart';
+import '../../state/user_store.dart';
+import 'dean_analytics_data.dart';
 
 class DeanDashboard extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -19,6 +17,8 @@ class _DeanDashboardState extends State<DeanDashboard> {
   static const Color primaryMaroon = Color(0xFF4A152C);
   static const Color lightBackground = Color(0xFFF7F8FA);
   static const Color accentGold = Color(0xFFC5A046);
+  static const Color cardBorder = Color(0xFFE5E7EB);
+  static const Color softRose = Color(0xFFF8F1F4);
 
   static const List<Color> chartColors = [
     Color(0xFF4A152C),
@@ -29,6 +29,7 @@ class _DeanDashboardState extends State<DeanDashboard> {
     Color(0xFF9B51E0),
   ];
 
+  late final String? _assignedProgram;
   String _selectedProgram = 'All';
   bool _isLoading = true;
 
@@ -41,16 +42,36 @@ class _DeanDashboardState extends State<DeanDashboard> {
   List<Map<String, dynamic>> _batchData = [];
   List<Map<String, dynamic>> _industryData = [];
   List<Map<String, dynamic>> _topEmployers = [];
-  Map<String, dynamic> _jobRelevance = {
-    'related': 0,
-    'other': 0,
-  };
+  Map<String, dynamic> _jobRelevance = {'related': 0, 'other': 0};
 
   @override
   void initState() {
     super.initState();
+    _assignedProgram = _normalizeProgram(
+      widget.user['program'] ?? UserStore.value?['program'],
+    );
+    _selectedProgram = _assignedProgram ?? 'All';
     _fetchDashboardData();
   }
+
+  String? _normalizeProgram(dynamic value) {
+    final normalized = value?.toString().trim().toUpperCase() ?? '';
+    if (normalized == 'BSIT' || normalized == 'BSSW') {
+      return normalized;
+    }
+    return null;
+  }
+
+  List<String> get _programOptions => _assignedProgram == null
+      ? const ['All', 'BSIT', 'BSSW']
+      : [_assignedProgram!];
+
+  String get _programLabel =>
+      _assignedProgram == null ? 'All Programs' : _assignedProgram!;
+
+  String get _roleLabel => _assignedProgram == null
+      ? 'Department Dean'
+      : '$_assignedProgram Department Head';
 
   Future<void> _fetchDashboardData() async {
     if (mounted) {
@@ -58,40 +79,18 @@ class _DeanDashboardState extends State<DeanDashboard> {
     }
 
     try {
-      final response = await http.get(
-        ApiService.uri(
-          'dean_dashboard.php',
-          queryParameters: {
-            'program': _selectedProgram,
-          },
-        ),
+      final analytics = await DeanAnalyticsService.fetch(
+        program: _selectedProgram,
       );
-
-      if (response.statusCode != 200) {
-        throw Exception('Request failed: ${response.statusCode}');
-      }
-
-      final decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) {
-        throw Exception('Unexpected response format');
-      }
 
       if (!mounted) return;
 
       setState(() {
-        _summary = Map<String, dynamic>.from(decoded['summary'] ?? {});
-        _batchData = ((decoded['batch_data'] ?? []) as List)
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList();
-        _industryData = ((decoded['industries'] ?? []) as List)
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList();
-        _topEmployers = ((decoded['top_employers'] ?? []) as List)
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList();
-        _jobRelevance = Map<String, dynamic>.from(
-          decoded['job_relevance'] ?? {'related': 0, 'other': 0},
-        );
+        _summary = analytics.summary;
+        _batchData = analytics.batchData;
+        _industryData = analytics.industryData;
+        _topEmployers = analytics.topEmployers;
+        _jobRelevance = analytics.jobRelevance;
         _isLoading = false;
       });
     } catch (e) {
@@ -112,236 +111,391 @@ class _DeanDashboardState extends State<DeanDashboard> {
           : LayoutBuilder(
               builder: (context, constraints) {
                 final isWide = constraints.maxWidth > 1100;
+                final isNarrow = constraints.maxWidth < 860;
 
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
+                return Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFF7F8FA), Color(0xFFF4F1F2)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(
+                      constraints.maxWidth < 600 ? 16 : 32,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHeroHeader(isNarrow),
+                        const SizedBox(height: 24),
+                        Wrap(
+                          spacing: 20,
+                          runSpacing: 20,
+                          children: [
+                            _buildStatCard(
+                              "Total Submissions",
+                              "${_summary['total_alumni'] ?? 0}",
+                              Icons.people_alt_outlined,
+                              Colors.blue,
+                              constraints.maxWidth,
+                            ),
+                            _buildStatCard(
+                              "Employment Rate",
+                              "${_summary['employment_rate'] ?? 0}%",
+                              Icons.trending_up,
+                              Colors.green,
+                              constraints.maxWidth,
+                            ),
+                            _buildStatCard(
+                              "Unemployment",
+                              "${_summary['unemployment_rate'] ?? 0}%",
+                              Icons.trending_down,
+                              Colors.redAccent,
+                              constraints.maxWidth,
+                            ),
+                            _buildStatCard(
+                              "Tracer Submissions",
+                              "${_summary['submissions'] ?? 0}",
+                              Icons.assignment_turned_in_outlined,
+                              accentGold,
+                              constraints.maxWidth,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 32),
+                        _buildDashboardSection(
+                          title: "Employment Rate Per Batch",
+                          child: SizedBox(
+                            height: 300,
+                            child: _batchData.isEmpty
+                                ? _buildEmptyState("No batch data yet.")
+                                : _buildBarChart(),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        if (isWide)
+                          Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                "Welcome, ${widget.user['name'] ?? 'Dean'}!",
-                                style: const TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              const Text(
-                                "Live tracer analytics based on submitted alumni records.",
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.grey.shade300),
-                                ),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String>(
-                                    value: _selectedProgram,
-                                    items: const [
-                                      DropdownMenuItem(
-                                        value: 'All',
-                                        child: Text('All Programs'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 'BSIT',
-                                        child: Text('BSIT'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 'BSSW',
-                                        child: Text('BSSW'),
-                                      ),
-                                    ],
-                                    onChanged: (value) {
-                                      if (value == null) return;
-                                      setState(() => _selectedProgram = value);
-                                      _fetchDashboardData();
-                                    },
+                              Expanded(
+                                child: _buildDashboardSection(
+                                  title: "Industry Distribution",
+                                  child: SizedBox(
+                                    height: 300,
+                                    child: _industryData.isEmpty
+                                        ? _buildEmptyState(
+                                            "No industry data found in tracer submissions.",
+                                          )
+                                        : _buildPieChart(),
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              IconButton(
-                                onPressed: _fetchDashboardData,
-                                icon: const Icon(Icons.refresh_rounded),
-                                tooltip: 'Refresh',
-                                style: IconButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: primaryMaroon,
+                              const SizedBox(width: 24),
+                              Expanded(
+                                child: _buildDashboardSection(
+                                  title: "Top Employers",
+                                  child: _topEmployers.isEmpty
+                                      ? _buildEmptyState(
+                                          "No employer records available yet.",
+                                        )
+                                      : Column(
+                                          children: _topEmployers
+                                              .asMap()
+                                              .entries
+                                              .map(
+                                                (entry) => _buildEmployerItem(
+                                                  entry.value['name']
+                                                          ?.toString() ??
+                                                      'Unknown Employer',
+                                                  "${entry.value['count'] ?? 0} Alumni",
+                                                  chartColors[entry.key %
+                                                      chartColors.length],
+                                                ),
+                                              )
+                                              .toList(),
+                                        ),
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          Column(
+                            children: [
+                              _buildDashboardSection(
+                                title: "Industry Distribution",
+                                child: SizedBox(
+                                  height: 300,
+                                  child: _industryData.isEmpty
+                                      ? _buildEmptyState(
+                                          "No industry data found in tracer submissions.",
+                                        )
+                                      : _buildPieChart(),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              _buildDashboardSection(
+                                title: "Top Employers",
+                                child: _topEmployers.isEmpty
+                                    ? _buildEmptyState(
+                                        "No employer records available yet.",
+                                      )
+                                    : Column(
+                                        children: _topEmployers
+                                            .asMap()
+                                            .entries
+                                            .map(
+                                              (entry) => _buildEmployerItem(
+                                                entry.value['name']
+                                                        ?.toString() ??
+                                                    'Unknown Employer',
+                                                "${entry.value['count'] ?? 0} Alumni",
+                                                chartColors[entry.key %
+                                                    chartColors.length],
+                                              ),
+                                            )
+                                            .toList(),
+                                      ),
+                              ),
+                            ],
+                          ),
+                        const SizedBox(height: 32),
+                        if (isWide)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: _buildDashboardSection(
+                                  title: "Job Relevance",
+                                  child: _buildJobRelevanceCard(),
+                                ),
+                              ),
+                              const SizedBox(width: 24),
+                              Expanded(
+                                child: _buildDashboardSection(
+                                  title: "Data Notes",
+                                  child: Container(
+                                    padding: const EdgeInsets.all(20),
+                                    decoration: BoxDecoration(
+                                      color: softRose,
+                                      borderRadius: BorderRadius.circular(18),
+                                      border: Border.all(color: cardBorder),
+                                    ),
+                                    child: const Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "This dashboard now reads live tracer submissions.",
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        SizedBox(height: 12),
+                                        Text(
+                                          "Industry data is grouped from the tracer form's sector field.",
+                                          style: TextStyle(color: Colors.grey),
+                                        ),
+                                        SizedBox(height: 8),
+                                        Text(
+                                          "Batch employment is grouped from year_graduated.",
+                                          style: TextStyle(color: Colors.grey),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          Column(
+                            children: [
+                              _buildDashboardSection(
+                                title: "Job Relevance",
+                                child: _buildJobRelevanceCard(),
+                              ),
+                              const SizedBox(height: 24),
+                              _buildDashboardSection(
+                                title: "Data Notes",
+                                child: Container(
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    color: softRose,
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(color: cardBorder),
+                                  ),
+                                  child: const Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "This dashboard now reads live tracer submissions.",
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      SizedBox(height: 12),
+                                      Text(
+                                        "Industry data is grouped from the tracer form's sector field.",
+                                        style: TextStyle(color: Colors.grey),
+                                      ),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        "Batch employment is grouped from year_graduated.",
+                                        style: TextStyle(color: Colors.grey),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 32),
-                      Wrap(
-                        spacing: 20,
-                        runSpacing: 20,
-                        children: [
-                          _buildStatCard(
-                            "Total Submissions",
-                            "${_summary['total_alumni'] ?? 0}",
-                            Icons.people_alt_outlined,
-                            Colors.blue,
-                            constraints.maxWidth,
-                          ),
-                          _buildStatCard(
-                            "Employment Rate",
-                            "${_summary['employment_rate'] ?? 0}%",
-                            Icons.trending_up,
-                            Colors.green,
-                            constraints.maxWidth,
-                          ),
-                          _buildStatCard(
-                            "Unemployment",
-                            "${_summary['unemployment_rate'] ?? 0}%",
-                            Icons.trending_down,
-                            Colors.redAccent,
-                            constraints.maxWidth,
-                          ),
-                          _buildStatCard(
-                            "Tracer Submissions",
-                            "${_summary['submissions'] ?? 0}",
-                            Icons.assignment_turned_in_outlined,
-                            accentGold,
-                            constraints.maxWidth,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 32),
-                      _buildDashboardSection(
-                        title: "Employment Rate Per Batch",
-                        child: SizedBox(
-                          height: 300,
-                          child: _batchData.isEmpty
-                              ? _buildEmptyState("No batch data yet.")
-                              : _buildBarChart(),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      Flex(
-                        direction: isWide ? Axis.horizontal : Axis.vertical,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            flex: isWide ? 1 : 0,
-                            child: _buildDashboardSection(
-                              title: "Industry Distribution",
-                              child: SizedBox(
-                                height: 300,
-                                child: _industryData.isEmpty
-                                    ? _buildEmptyState(
-                                        "No industry data found in tracer submissions.",
-                                      )
-                                    : _buildPieChart(),
-                              ),
-                            ),
-                          ),
-                          if (isWide)
-                            const SizedBox(width: 24)
-                          else
-                            const SizedBox(height: 24),
-                          Expanded(
-                            flex: isWide ? 1 : 0,
-                            child: _buildDashboardSection(
-                              title: "Top Employers",
-                              child: _topEmployers.isEmpty
-                                  ? _buildEmptyState(
-                                      "No employer records available yet.",
-                                    )
-                                  : Column(
-                                      children: _topEmployers
-                                          .asMap()
-                                          .entries
-                                          .map(
-                                            (entry) => _buildEmployerItem(
-                                              entry.value['name']?.toString() ??
-                                                  'Unknown Employer',
-                                              "${entry.value['count'] ?? 0} Alumni",
-                                              chartColors[
-                                                  entry.key % chartColors.length],
-                                            ),
-                                          )
-                                          .toList(),
-                                    ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 32),
-                      Flex(
-                        direction: isWide ? Axis.horizontal : Axis.vertical,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: _buildDashboardSection(
-                              title: "Job Relevance",
-                              child: _buildJobRelevanceCard(),
-                            ),
-                          ),
-                          if (isWide)
-                            const SizedBox(width: 24)
-                          else
-                            const SizedBox(height: 24),
-                          Expanded(
-                            child: _buildDashboardSection(
-                              title: "Data Notes",
-                              child: Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: lightBackground,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.grey.shade200),
-                                ),
-                                child: const Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "This dashboard now reads live tracer submissions.",
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    SizedBox(height: 12),
-                                    Text(
-                                      "Industry data is grouped from the tracer form's sector field.",
-                                      style: TextStyle(color: Colors.grey),
-                                    ),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      "Batch employment is grouped from year_graduated.",
-                                      style: TextStyle(color: Colors.grey),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               },
             ),
+    );
+  }
+
+  Widget _buildHeroHeader(bool isNarrow) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [primaryMaroon, primaryMaroon.withValues(alpha: 0.88)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: primaryMaroon.withValues(alpha: 0.18),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Wrap(
+        spacing: 18,
+        runSpacing: 18,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Icon(
+              Icons.query_stats_outlined,
+              color: accentGold,
+              size: 34,
+            ),
+          ),
+          SizedBox(
+            width: isNarrow ? double.infinity : 460,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Welcome, ${widget.user['name'] ?? '$_roleLabel'}!",
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _assignedProgram == null
+                      ? "Review live tracer analytics, industry trends, and graduate outcomes across the academic programs."
+                      : "Review live tracer analytics, industry trends, and graduate outcomes for $_assignedProgram.",
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.82),
+                    height: 1.5,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.14),
+                  ),
+                ),
+                child: _assignedProgram == null
+                    ? DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          dropdownColor: primaryMaroon,
+                          value: _selectedProgram,
+                          style: const TextStyle(color: Colors.white),
+                          iconEnabledColor: Colors.white,
+                          items: _programOptions
+                              .map(
+                                (program) => DropdownMenuItem(
+                                  value: program,
+                                  child: Text(
+                                    program == 'All' ? 'All Programs' : program,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() => _selectedProgram = value);
+                            _fetchDashboardData();
+                          },
+                        ),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.lock_outline, color: accentGold, size: 18),
+                          const SizedBox(width: 10),
+                          Text(
+                            _assignedProgram!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+              OutlinedButton.icon(
+                onPressed: _fetchDashboardData,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.30)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: Text('Refresh $_programLabel'),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -361,35 +515,45 @@ class _DeanDashboardState extends State<DeanDashboard> {
     final total = related + other;
     final relatedRate = total > 0 ? ((related / total) * 100).round() : 0;
     final otherRate = total > 0 ? ((other / total) * 100).round() : 0;
+    final isNarrow = MediaQuery.of(context).size.width < 640;
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: lightBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        color: softRose,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: cardBorder),
       ),
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildMiniMetric(
-                  "Related",
-                  "$relatedRate%",
-                  Colors.green,
+          if (isNarrow)
+            Column(
+              children: [
+                _buildMiniMetric("Related", "$relatedRate%", Colors.green),
+                const SizedBox(height: 16),
+                _buildMiniMetric("Other/Partial", "$otherRate%", accentGold),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMiniMetric(
+                    "Related",
+                    "$relatedRate%",
+                    Colors.green,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildMiniMetric(
-                  "Other/Partial",
-                  "$otherRate%",
-                  accentGold,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildMiniMetric(
+                    "Other/Partial",
+                    "$otherRate%",
+                    accentGold,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           const SizedBox(height: 20),
           LinearProgressIndicator(
             value: total > 0 ? related / total : 0,
@@ -413,8 +577,8 @@ class _DeanDashboardState extends State<DeanDashboard> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: cardBorder),
       ),
       child: Column(
         children: [
@@ -427,10 +591,7 @@ class _DeanDashboardState extends State<DeanDashboard> {
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.grey),
-          ),
+          Text(label, style: const TextStyle(color: Colors.grey)),
         ],
       ),
     );
@@ -510,16 +671,16 @@ class _DeanDashboardState extends State<DeanDashboard> {
     Color color,
     double totalWidth,
   ) {
-    double cardWidth = (totalWidth - 64 - (20 * 3)) / 4;
-    if (totalWidth < 1100) cardWidth = (totalWidth - 64 - 20) / 2;
-    if (totalWidth < 600) cardWidth = totalWidth - 64;
+    double cardWidth = (totalWidth - (20 * 3)) / 4;
+    if (totalWidth < 1100) cardWidth = (totalWidth - 20) / 2;
+    if (totalWidth < 600) cardWidth = totalWidth;
 
     return Container(
       width: cardWidth,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -527,7 +688,7 @@ class _DeanDashboardState extends State<DeanDashboard> {
             offset: const Offset(0, 4),
           ),
         ],
-        border: Border.all(color: Colors.grey.shade100),
+        border: Border.all(color: cardBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -645,8 +806,8 @@ class _DeanDashboardState extends State<DeanDashboard> {
       width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFF0F0F0)),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: cardBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

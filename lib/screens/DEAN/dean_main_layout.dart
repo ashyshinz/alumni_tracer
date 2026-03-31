@@ -1,19 +1,20 @@
 import 'dart:async';
-import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import '../../services/api_service.dart';
-import '../widgets/sidebar.dart';
-import 'dean_dashboard.dart';
-import 'announcement_page.dart';
-import 'settings_page.dart';
-import 'department_alumni.dart';
-import 'career_reports.dart';
-import 'career_overview.dart';
+
+import '../../services/content_service.dart';
 import '../../state/user_store.dart';
+import '../widgets/sidebar.dart';
+import 'announcement_page.dart';
+import 'career_overview.dart';
+import 'career_reports.dart';
+import 'dean_dashboard.dart';
+import 'department_alumni.dart';
+import 'settings_page.dart';
 
 class DeanMainLayout extends StatefulWidget {
   final Map<String, dynamic> user;
+
   const DeanMainLayout({super.key, required this.user});
 
   @override
@@ -31,7 +32,6 @@ class _DeanMainLayoutState extends State<DeanMainLayout> {
   final Color primaryMaroon = const Color(0xFF4A152C);
   final Color accentGold = const Color(0xFFC5A046);
   final Color bgLight = const Color(0xFFF7F8FA);
-  final Color borderColor = const Color(0xFFEEEEEE);
 
   late final List<Widget> _pages;
 
@@ -55,15 +55,18 @@ class _DeanMainLayoutState extends State<DeanMainLayout> {
 
   Future<void> _fetchNotifications() async {
     try {
-      final response = await http.get(
-        ApiService.uri('get_full_activity.php'),
-      );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          _notifications = data is List ? data : [];
-        });
-      }
+      final announcements = await ContentService.fetchAnnouncements();
+      if (!mounted) return;
+      setState(() {
+        _notifications = announcements.take(10).map((item) {
+          return {
+            'title': item['title']?.toString() ?? 'Announcement',
+            'time': item['created_at']?.toString() ?? 'Just now',
+            'type': item['category']?.toString() ?? 'Announcement',
+            'description': item['description']?.toString() ?? '',
+          };
+        }).toList();
+      });
     } catch (e) {
       debugPrint("Notifications Error: $e");
     }
@@ -76,8 +79,7 @@ class _DeanMainLayoutState extends State<DeanMainLayout> {
   }
 
   void _showNotifications() async {
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final button =
         _notificationKey.currentContext!.findRenderObject() as RenderBox;
     final buttonPosition = button.localToGlobal(Offset.zero, ancestor: overlay);
@@ -98,14 +100,16 @@ class _DeanMainLayoutState extends State<DeanMainLayout> {
         PopupMenuItem(
           enabled: false,
           child: Container(
-            width: 320,
+            width: MediaQuery.of(context).size.width < 420
+                ? MediaQuery.of(context).size.width - 48
+                : 320,
             height: 220,
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.18),
+                  color: Colors.black.withValues(alpha: 0.18),
                   blurRadius: 12,
                   offset: const Offset(0, 6),
                 ),
@@ -147,19 +151,23 @@ class _DeanMainLayoutState extends State<DeanMainLayout> {
                               dense: true,
                               leading: CircleAvatar(
                                 radius: 16,
-                                backgroundColor: accentGold.withOpacity(0.2),
+                                backgroundColor: accentGold.withValues(
+                                  alpha: 0.2,
+                                ),
                                 child: const Icon(
-                                  Icons.notifications,
+                                  Icons.announcement_outlined,
                                   size: 18,
                                   color: Colors.white,
                                 ),
                               ),
                               title: Text(
-                                note['title'] ?? 'Update',
+                                note['title']?.toString() ?? 'Update',
                                 style: const TextStyle(fontSize: 14),
                               ),
                               subtitle: Text(
-                                note['time'] ?? 'Just now',
+                                note['type']?.toString().isNotEmpty == true
+                                    ? '${note['type']} • ${note['time'] ?? 'Just now'}'
+                                    : note['time']?.toString() ?? 'Just now',
                                 style: const TextStyle(fontSize: 12),
                               ),
                             );
@@ -176,9 +184,9 @@ class _DeanMainLayoutState extends State<DeanMainLayout> {
 
   @override
   Widget build(BuildContext context) {
-    double screenWidth = MediaQuery.of(context).size.width;
-    bool isMobile = screenWidth < 768;
-    bool isTablet = screenWidth >= 768 && screenWidth < 1024;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 768;
+    final isTablet = screenWidth >= 768 && screenWidth < 1024;
 
     if (!_hasInitializedLayout) {
       _isSidebarCollapsed = isTablet;
@@ -227,12 +235,27 @@ class _DeanMainLayoutState extends State<DeanMainLayout> {
   }
 
   Widget _buildHeader(bool isMobile) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 640;
+    final liveUser = UserStore.value ?? widget.user;
+
     return Container(
-      height: 70,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      height: isCompact ? 88 : 86,
+      padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: borderColor)),
+        gradient: const LinearGradient(
+          colors: [Colors.white, Color(0xFFF9F5F6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: const Border(bottom: BorderSide(color: Color(0xFFE8E1E4))),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -243,30 +266,43 @@ class _DeanMainLayoutState extends State<DeanMainLayout> {
                 onPressed: () => Scaffold.of(ctx).openDrawer(),
               ),
             ),
-
-          if (!isMobile) ...[
-            const SizedBox(width: 20),
+          SizedBox(width: isCompact ? 8 : 12),
+          if (!isMobile)
             Expanded(
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 400),
-                height: 40,
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: "Search alumni or reports...",
-                    prefixIcon: const Icon(Icons.search, size: 18),
-                    filled: true,
-                    fillColor: const Color(0xFFF1F3F4),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8F1F4),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFE7DCE1)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.analytics_outlined,
+                      color: primaryMaroon,
+                      size: 18,
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        "Review tracer trends, employment insights, and department records.",
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ] else
+            )
+          else
             const Spacer(),
-
           IconButton(
             key: _notificationKey,
             onPressed: _showNotifications,
@@ -274,35 +310,58 @@ class _DeanMainLayoutState extends State<DeanMainLayout> {
               label: Text(_notifications.length.toString()),
               isLabelVisible: _notifications.isNotEmpty,
               backgroundColor: accentGold,
-              child: const Icon(
+              child: Icon(
                 Icons.notifications_none_outlined,
-                color: Colors.grey,
+                color: primaryMaroon,
               ),
             ),
           ),
-          const SizedBox(width: 20),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
+          SizedBox(width: isCompact ? 8 : 20),
+          Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                widget.user['name'] ?? "Dean",
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
+              if (!isCompact)
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      liveUser['name']?.toString() ?? "Dean",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: primaryMaroon,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      liveUser['role']?.toString() ?? "Dean",
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              if (!isCompact) const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [accentGold, primaryMaroon.withValues(alpha: 0.9)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: CircleAvatar(
+                  backgroundColor: primaryMaroon,
+                  radius: 18,
+                  child: const Icon(
+                    Icons.person,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
               ),
-              Text(
-                widget.user['role'] ?? "Dean",
-                style: const TextStyle(fontSize: 11, color: Colors.grey),
-              ),
             ],
-          ),
-          const SizedBox(width: 10),
-          CircleAvatar(
-            backgroundColor: primaryMaroon,
-            radius: 16,
-            child: const Icon(Icons.person, color: Colors.white, size: 18),
           ),
         ],
       ),

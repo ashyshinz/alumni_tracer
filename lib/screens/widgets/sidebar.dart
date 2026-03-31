@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../services/auth_service.dart';
 
 class Sidebar extends StatefulWidget {
@@ -26,6 +27,10 @@ class Sidebar extends StatefulWidget {
 class _SidebarState extends State<Sidebar> {
   late bool _isCollapsed;
 
+  static const Color _sidebarBg = Color(0xFF4A152C);
+  static const Color _sidebarDeep = Color(0xFF32111F);
+  static const Color _activeGold = Color(0xFFC5A046);
+
   @override
   void initState() {
     super.initState();
@@ -33,262 +38,457 @@ class _SidebarState extends State<Sidebar> {
   }
 
   @override
-  void didUpdateWidget(Sidebar oldWidget) {
+  void didUpdateWidget(covariant Sidebar oldWidget) {
     super.didUpdateWidget(oldWidget);
     _isCollapsed = widget.isCollapsed;
   }
 
   @override
   Widget build(BuildContext context) {
-    const Color sidebarBg = Color(0xFF4A152C); // Deep Maroon
-    const Color activeGold = Color.fromARGB(
-      255,
-      255,
-      183,
-      0,
-    ); // Yellow highlight
-    const Color inactiveText = Colors.white70;
-
-    final List<Map<String, dynamic>> menuItems = _getMenuItems(widget.role);
-
-    // Responsive width based on collapse state and screen size
-    double sidebarWidth = _isCollapsed ? 80 : 280;
+    final menuItems = _getMenuItems(widget.role);
+    final sidebarWidth = _isCollapsed ? 88.0 : 292.0;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 280),
       width: sidebarWidth,
-      color: sidebarBg,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [_sidebarBg, Color(0xFF5B1E37), _sidebarDeep],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 20,
+            offset: const Offset(6, 0),
+          ),
+        ],
+      ),
       child: Column(
         children: [
-          // HEADER WITH TOGGLE
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              _isCollapsed ? 8 : 12,
-              24,
-              _isCollapsed ? 8 : 12,
-              10,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    if (!_isCollapsed)
-                      Expanded(
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.admin_panel_settings,
-                              color: Colors.white,
-                              size: 24,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                _getRoleHeader(widget.role),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      Tooltip(
-                        message: _getRoleHeader(widget.role),
-                        child: const Icon(
-                          Icons.admin_panel_settings,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
-                    // Toggle Button - Always visible and clickable
-                    GestureDetector(
-                      onTap: () {
-                        if (widget.isInDrawer) {
-                          // If in drawer, close the drawer
-                          Navigator.of(context).pop();
-                        } else {
-                          // Otherwise, toggle collapse
-                          setState(() => _isCollapsed = !_isCollapsed);
-                          widget.onToggleSidebar?.call();
-                        }
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.all(4.0),
-                        child: Tooltip(
-                          message: widget.isInDrawer
-                              ? "Close Menu"
-                              : (_isCollapsed
-                                    ? "Expand Sidebar"
-                                    : "Collapse Sidebar"),
-                          child: Icon(
-                            widget.isInDrawer
-                                ? Icons.close
-                                : (_isCollapsed
-                                      ? Icons.menu_open_outlined
-                                      : Icons.menu_rounded),
-                            color: Colors.white70,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (!_isCollapsed) ...[
-                  const SizedBox(height: 4),
-                  const Padding(
-                    padding: EdgeInsets.only(left: 0),
-                    child: Text(
-                      "Alumni Management",
-                      style: TextStyle(color: inactiveText, fontSize: 12),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(height: 1, color: Colors.white10),
-                  const SizedBox(height: 4),
-                  Container(
-                    height: 1,
-                    width: 80,
-                    color: activeGold.withValues(alpha: 0.2),
-                  ),
-                ] else
-                  const SizedBox(height: 12),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          // MENU ITEMS
+          _buildHeroPanel(),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+              padding: EdgeInsets.fromLTRB(
+                _isCollapsed ? 10 : 10,
+                10,
+                _isCollapsed ? 10 : 12,
+                12,
+              ),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  for (int i = 0; i < menuItems.length; i++)
-                    _customTile(
+                  for (var i = 0; i < menuItems.length; i++)
+                    _buildMenuTile(
                       context,
-                      menuItems[i]['title'],
-                      menuItems[i]['icon'],
-                      i,
+                      title: menuItems[i]['title'] as String,
+                      icon: menuItems[i]['icon'] as IconData,
+                      index: i,
                       isActive: i == widget.selectedIndex,
-                      activeColor: activeGold,
-                      isCollapsed: _isCollapsed,
                     ),
-                  SizedBox(height: _isCollapsed ? 8 : 16),
                   Padding(
                     padding: EdgeInsets.symmetric(
-                      horizontal: _isCollapsed ? 8 : 4,
+                      horizontal: _isCollapsed ? 8 : 10,
+                      vertical: 12,
                     ),
                     child: Divider(
-                      color: Colors.white24,
-                      height: _isCollapsed ? 8 : 16,
+                      color: Colors.white.withValues(alpha: 0.14),
+                      height: 1,
                     ),
                   ),
-                  SizedBox(height: _isCollapsed ? 8 : 16),
-                  _customTile(
+                  _buildMenuTile(
                     context,
-                    "Logout",
-                    Icons.logout,
-                    -1,
+                    title: 'Logout',
+                    icon: Icons.logout_rounded,
+                    index: -1,
                     isLogout: true,
-                    isCollapsed: _isCollapsed,
                   ),
                 ],
               ),
             ),
           ),
-
-          // FOOTER
-          if (!_isCollapsed)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white10,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Academic Year",
-                      style: TextStyle(color: inactiveText, fontSize: 10),
-                    ),
-                    Text(
-                      "2025-2026",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Tooltip(
-                message: "2025-2026",
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white10,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.calendar_month,
-                      color: Colors.white54,
-                      size: 18,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          _buildFooterCard(),
         ],
       ),
     );
   }
 
+  Widget _buildHeroPanel() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+        _isCollapsed ? 10 : 16,
+        24,
+        _isCollapsed ? 10 : 16,
+        16,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withValues(alpha: 0.10),
+            Colors.white.withValues(alpha: 0.02),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final useCompactExpandedHeader =
+              !_isCollapsed && constraints.maxWidth < 210;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _isCollapsed
+                  ? Column(
+                      children: [
+                        Tooltip(
+                          message: _getRoleHeader(widget.role),
+                          child: Align(
+                            alignment: Alignment.center,
+                            child: _buildLogo(size: 42),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.center,
+                          child: GestureDetector(
+                            onTap: () {
+                              if (widget.isInDrawer) {
+                                Navigator.of(context).pop();
+                                return;
+                              }
+                              setState(() => _isCollapsed = !_isCollapsed);
+                              widget.onToggleSidebar?.call();
+                            },
+                            child: SizedBox(
+                              width: 34,
+                              height: 34,
+                              child: Icon(
+                                widget.isInDrawer
+                                    ? Icons.close
+                                    : Icons.menu_open_rounded,
+                                color: Colors.white70,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : useCompactExpandedHeader
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: _buildLogo(size: 44),
+                        ),
+                        const SizedBox(height: 10),
+                        GestureDetector(
+                          onTap: () {
+                            if (widget.isInDrawer) {
+                              Navigator.of(context).pop();
+                              return;
+                            }
+                            setState(() => _isCollapsed = !_isCollapsed);
+                            widget.onToggleSidebar?.call();
+                          },
+                          child: const SizedBox(
+                            width: 34,
+                            height: 34,
+                            child: Icon(
+                              Icons.menu_rounded,
+                              color: Colors.white70,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          _getRoleHeader(widget.role),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _getRoleSubheader(widget.role),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.76),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w500,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              _buildLogo(size: 54),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _getRoleHeader(widget.role),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.2,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      _getRoleSubheader(widget.role),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.76,
+                                        ),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        height: 1.3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () {
+                            if (widget.isInDrawer) {
+                              Navigator.of(context).pop();
+                              return;
+                            }
+                            setState(() => _isCollapsed = !_isCollapsed);
+                            widget.onToggleSidebar?.call();
+                          },
+                          child: SizedBox(
+                            width: 34,
+                            height: 34,
+                            child: Icon(
+                              widget.isInDrawer
+                                  ? Icons.close
+                                  : Icons.menu_rounded,
+                              color: Colors.white70,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+              SizedBox(height: _isCollapsed ? 14 : 18),
+              Container(
+                height: 1,
+                width: double.infinity,
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildLogo({required double size}) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Image.asset('assets/jmclogo.png', fit: BoxFit.contain),
+    );
+  }
+
+  Widget _buildFooterCard() {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        _isCollapsed ? 10 : 12,
+        0,
+        _isCollapsed ? 10 : 12,
+        12,
+      ),
+      child: Tooltip(
+        message: 'Academic Year 2025-2026',
+        child: Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(_isCollapsed ? 10 : 14),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+          ),
+          child: _isCollapsed
+              ? const Icon(
+                  Icons.calendar_month_outlined,
+                  color: Colors.white70,
+                  size: 18,
+                )
+              : const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Academic Year',
+                      style: TextStyle(color: Colors.white70, fontSize: 10),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '2025-2026',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuTile(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required int index,
+    bool isActive = false,
+    bool isLogout = false,
+  }) {
+    final tile = Container(
+      margin: const EdgeInsets.symmetric(vertical: 5),
+      decoration: BoxDecoration(
+        color: isActive
+            ? _activeGold.withValues(alpha: 0.20)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        border: isActive
+            ? Border.all(color: Colors.white.withValues(alpha: 0.10))
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () async {
+            if (isLogout) {
+              await AuthService.logout(context);
+              return;
+            }
+            if (widget.onItemSelected != null && index >= 0) {
+              widget.onItemSelected!(index);
+            }
+          },
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: _isCollapsed ? 0 : 14,
+              vertical: 13,
+            ),
+            child: _isCollapsed
+                ? Center(
+                    child: Icon(
+                      icon,
+                      color: isActive ? Colors.white : Colors.white70,
+                      size: 24,
+                    ),
+                  )
+                : Row(
+                    children: [
+                      Icon(
+                        icon,
+                        color: isActive ? Colors.white : Colors.white70,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          title,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: isActive ? Colors.white : Colors.white70,
+                            fontWeight: isActive
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                      ),
+                      if (isActive)
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 14,
+                          color: Colors.white.withValues(alpha: 0.9),
+                        ),
+                    ],
+                  ),
+          ),
+        ),
+      ),
+    );
+
+    if (_isCollapsed) {
+      return Tooltip(message: title, child: tile);
+    }
+    return tile;
+  }
+
   String _getRoleHeader(String role) {
     switch (role.toLowerCase()) {
-      case "admin":
-        return "System Admin";
-      case "dean":
-        return "Department Dean";
-      case "alumni":
-        return "Alumni Member";
+      case 'admin':
+        return 'ADMINISTRATOR';
+      case 'dean':
+        return 'Department Head';
+      case 'alumni':
+        return 'ALUMNI PORTAL';
       default:
-        return "Welcome";
+        return 'Welcome';
+    }
+  }
+
+  String _getRoleSubheader(String role) {
+    switch (role.toLowerCase()) {
+      case 'admin':
+        return 'Data governance and oversight';
+      case 'dean':
+        return 'Live program analytics';
+      case 'alumni':
+        return 'Career and tracer access';
+      default:
+        return 'Portal Navigation';
     }
   }
 
   List<Map<String, dynamic>> _getMenuItems(String role) {
     switch (role.toLowerCase()) {
-      case "admin":
+      case 'admin':
         return [
           {'title': 'Dashboard', 'icon': Icons.grid_view_outlined},
-          {'title': 'Alumni Data', 'icon': Icons.people_outline},
-          {'title': 'Tracer Submissions', 'icon': Icons.bar_chart},
-          {'title': 'Verify Users', 'icon': Icons.campaign_outlined},
+          {'title': 'Alumni List', 'icon': Icons.people_outline},
+          {'title': 'Tracer Governance', 'icon': Icons.analytics_outlined},
+          {'title': 'Verify Users', 'icon': Icons.verified_user_outlined},
           {'title': 'Announcements', 'icon': Icons.campaign_outlined},
           {'title': 'Jobs', 'icon': Icons.work_outline},
           {'title': 'Settings', 'icon': Icons.settings_outlined},
         ];
-      case "dean":
+      case 'dean':
         return [
           {'title': 'Dashboard', 'icon': Icons.grid_view_outlined},
           {'title': 'Department Alumni', 'icon': Icons.people_outline},
@@ -297,7 +497,7 @@ class _SidebarState extends State<Sidebar> {
           {'title': 'Announcements', 'icon': Icons.campaign_outlined},
           {'title': 'Settings', 'icon': Icons.settings_outlined},
         ];
-      case "alumni":
+      case 'alumni':
         return [
           {'title': 'Dashboard', 'icon': Icons.grid_view_outlined},
           {'title': 'Profile', 'icon': Icons.person_outline},
@@ -308,114 +508,5 @@ class _SidebarState extends State<Sidebar> {
       default:
         return [];
     }
-  }
-
-  Widget _customTile(
-    BuildContext context,
-    String title,
-    IconData icon,
-    int index, {
-    bool isActive = false,
-    Color? activeColor,
-    bool isLogout = false,
-    bool isCollapsed = false,
-  }) {
-    // Collapsed version with center-aligned icon
-    if (isCollapsed) {
-      return Tooltip(
-        message: title,
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-          decoration: BoxDecoration(
-            color: isActive
-                ? activeColor?.withValues(alpha: 0.3)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () async {
-                if (isLogout) {
-                  await AuthService.logout(context);
-                  return;
-                }
-
-                if (widget.onItemSelected != null && index >= 0) {
-                  widget.onItemSelected!(index);
-                }
-              },
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 0,
-                ),
-                child: Center(
-                  child: Icon(
-                    icon,
-                    color: isActive ? Colors.white : Colors.white70,
-                    size: 24,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    // Expanded version with full text
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
-      decoration: BoxDecoration(
-        color: isActive
-            ? activeColor?.withValues(alpha: 0.2)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () async {
-            if (isLogout) {
-              await AuthService.logout(context);
-              return;
-            }
-
-            if (widget.onItemSelected != null && index >= 0) {
-              widget.onItemSelected!(index);
-            }
-          },
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            child: Row(
-              children: [
-                Icon(
-                  icon,
-                  color: isActive ? Colors.white : Colors.white70,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: isActive ? Colors.white : Colors.white70,
-                      fontWeight: isActive
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      fontSize: 13,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }

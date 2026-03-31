@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../../services/activity_service.dart';
 import '../../services/api_service.dart';
 
 class PendingUsersPage extends StatefulWidget {
@@ -12,8 +13,9 @@ class PendingUsersPage extends StatefulWidget {
 
 class _PendingUsersPageState extends State<PendingUsersPage> {
   final Color bgLight = const Color(0xFFF8F9FA);
-  final Color borderColor = const Color(0xFFE0E0E0);
+  final Color borderColor = const Color(0xFFE5E7EB);
   final Color primaryMaroon = const Color(0xFF4A152C);
+  final Color accentGold = const Color(0xFFC5A046);
 
   // ✅ Live Data States
   List<dynamic> pendingUsers = [];
@@ -29,9 +31,7 @@ class _PendingUsersPageState extends State<PendingUsersPage> {
   Future<void> fetchPendingUsers() async {
     setState(() => isLoading = true);
     try {
-      final response = await http.get(
-        ApiService.uri('get_pending_users.php'),
-      );
+      final response = await http.get(ApiService.uri('get_pending_users.php'));
 
       if (response.statusCode == 200) {
         setState(() {
@@ -58,6 +58,16 @@ class _PendingUsersPageState extends State<PendingUsersPage> {
       if (response.statusCode == 200) {
         final result = json.decode(response.body);
         if (result['success']) {
+          await ActivityService.logImportantFlow(
+            action: isApprove ? 'approve_user' : 'reject_user',
+            title:
+                'Admin ${isApprove ? 'approved' : 'rejected'} the registration of $name',
+            type: 'Verification',
+            userId: int.tryParse(id),
+            userName: name,
+            role: 'admin',
+            metadata: {'status': action},
+          );
           fetchPendingUsers(); // Refresh list
           _showSnackBar(
             isApprove ? "Approved $name" : "Rejected $name",
@@ -211,11 +221,19 @@ class _PendingUsersPageState extends State<PendingUsersPage> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: bgLight,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFFF7F8FA), Color(0xFFF4F1F2)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
       child: isLoading
           ? Center(child: CircularProgressIndicator(color: primaryMaroon))
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(32),
+              padding: EdgeInsets.all(
+                MediaQuery.of(context).size.width < 600 ? 16 : 32,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -229,28 +247,151 @@ class _PendingUsersPageState extends State<PendingUsersPage> {
   }
 
   Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Pending Alumni Verification",
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              "Review and approve newly registered alumni accounts",
-              style: TextStyle(color: Colors.grey),
-            ),
-          ],
+    final width = MediaQuery.of(context).size.width;
+    final isStacked = width < 980;
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [primaryMaroon, primaryMaroon.withValues(alpha: 0.88)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        OutlinedButton.icon(
-          onPressed: fetchPendingUsers,
-          icon: const Icon(Icons.refresh),
-          label: const Text("Refresh"),
-        ),
-      ],
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: primaryMaroon.withValues(alpha: 0.18),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: isStacked
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Icon(
+                    Icons.verified_user_outlined,
+                    color: accentGold,
+                    size: 34,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Pending Alumni Verification",
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Review and approve newly registered alumni accounts in a cleaner verification workspace.",
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.82),
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: fetchPendingUsers,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text("Refresh"),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 52),
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.30),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Icon(
+                    Icons.verified_user_outlined,
+                    color: accentGold,
+                    size: 34,
+                  ),
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Pending Alumni Verification",
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Review and approve newly registered alumni accounts in a cleaner verification workspace.",
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.82),
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                OutlinedButton.icon(
+                  onPressed: fetchPendingUsers,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text("Refresh"),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 52),
+                    side: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.30),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
@@ -259,8 +400,15 @@ class _PendingUsersPageState extends State<PendingUsersPage> {
       width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -294,67 +442,86 @@ class _PendingUsersPageState extends State<PendingUsersPage> {
                         DataColumn(label: Text("Email")),
                         DataColumn(label: Text("Program")),
                         DataColumn(label: Text("Year")),
-                        DataColumn(
-                          label: Expanded(
-                            child: Text("Actions", textAlign: TextAlign.right),
-                          ),
-                        ),
+                        DataColumn(label: Text("Actions")),
                       ],
                       rows: pendingUsers
                           .map(
                             (user) => DataRow(
                               cells: [
                                 DataCell(
-                                  Text(
-                                    user['name'] ?? 'N/A',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
+                                  SizedBox(
+                                    width: 180,
+                                    child: Text(
+                                      user['name'] ?? 'N/A',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ),
-                                DataCell(Text(user['email'] ?? 'N/A')),
-                                DataCell(Text(user['program'] ?? 'N/A')),
+                                DataCell(
+                                  SizedBox(
+                                    width: 220,
+                                    child: Text(
+                                      user['email'] ?? 'N/A',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
+                                DataCell(
+                                  SizedBox(
+                                    width: 140,
+                                    child: Text(
+                                      user['program'] ?? 'N/A',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
                                 DataCell(
                                   Text(user['year_graduated'].toString()),
                                 ),
                                 DataCell(
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.visibility_outlined,
-                                            size: 22,
-                                            color: Colors.blue,
+                                  SizedBox(
+                                    width: 250,
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.visibility_outlined,
+                                              size: 22,
+                                              color: Colors.blue,
+                                            ),
+                                            onPressed: () =>
+                                                _showUserDetails(user),
                                           ),
-                                          onPressed: () =>
-                                              _showUserDetails(user),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        _buildBoxedButton(
-                                          "Approve",
-                                          const Color(0xFFE8F5E9),
-                                          Colors.green,
-                                          () => _handleAction(
-                                            user['id'].toString(),
-                                            user['name'],
-                                            true,
+                                          const SizedBox(width: 8),
+                                          _buildBoxedButton(
+                                            "Approve",
+                                            const Color(0xFFE8F5E9),
+                                            Colors.green,
+                                            () => _handleAction(
+                                              user['id'].toString(),
+                                              user['name'],
+                                              true,
+                                            ),
                                           ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        _buildBoxedButton(
-                                          "Reject",
-                                          const Color(0xFFFFEBEE),
-                                          Colors.red,
-                                          () => _handleAction(
-                                            user['id'].toString(),
-                                            user['name'],
-                                            false,
+                                          const SizedBox(width: 8),
+                                          _buildBoxedButton(
+                                            "Reject",
+                                            const Color(0xFFFFEBEE),
+                                            Colors.red,
+                                            () => _handleAction(
+                                              user['id'].toString(),
+                                              user['name'],
+                                              false,
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),

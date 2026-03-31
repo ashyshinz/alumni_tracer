@@ -1,5 +1,12 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
+
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+import '../../services/api_service.dart';
+import '../../services/signed_tracer_filter.dart';
+import '../../state/user_store.dart';
 
 class CareerReportsPage extends StatefulWidget {
   const CareerReportsPage({super.key});
@@ -9,179 +16,464 @@ class CareerReportsPage extends StatefulWidget {
 }
 
 class _CareerReportsPageState extends State<CareerReportsPage> {
-  // Theme Colors
   final Color primaryMaroon = const Color(0xFF4A152C);
   final Color accentGold = const Color(0xFFC5A046);
   final Color bgLight = const Color(0xFFF7F8FA);
+  final Color borderColor = const Color(0xFFE5E7EB);
 
-  // Filter States
-  String selectedProgram = "BSIT";
-  String selectedBatch = "2022";
-  String selectedStatus = "All Status";
+  late final String? _assignedProgram;
+  String selectedProgram = 'BSIT';
+  String selectedBatch = 'All Batches';
+  String selectedStatus = 'All Status';
+  bool _isLoading = true;
+
+  List<Map<String, dynamic>> _allRows = [];
+  List<Map<String, dynamic>> _rows = [];
+  Map<String, dynamic> _report = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _assignedProgram = _normalizeProgram(UserStore.value?['program']);
+    selectedProgram = _assignedProgram ?? 'BSIT';
+    _fetchReports();
+  }
+
+  String? _normalizeProgram(dynamic value) {
+    final normalized = value?.toString().trim().toUpperCase() ?? '';
+    if (normalized == 'BSIT' || normalized == 'BSSW') {
+      return normalized;
+    }
+    return null;
+  }
+
+  List<String> get _programOptions =>
+      _assignedProgram == null ? const ['BSIT', 'BSSW'] : [_assignedProgram!];
+
+  Future<void> _fetchReports() async {
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
+
+    try {
+      final tracerResponse = await http.get(
+        ApiService.uri(
+          'get_tracer_submissions.php',
+          queryParameters: {'program': selectedProgram},
+        ),
+      );
+      final reportResponse = await http.get(
+        ApiService.uri(
+          'get_reports.php',
+          queryParameters: {'program': selectedProgram},
+        ),
+      );
+
+      if (tracerResponse.statusCode != 200 ||
+          reportResponse.statusCode != 200) {
+        throw Exception('Failed to load report data');
+      }
+
+      final tracerDecoded = jsonDecode(tracerResponse.body);
+      final reportDecoded = jsonDecode(reportResponse.body);
+      final rawRows = tracerDecoded is Map ? tracerDecoded['alumni'] ?? [] : [];
+      final signedRecords = tracerDecoded is Map
+          ? ((tracerDecoded['signed_records'] ?? []) as List)
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList()
+          : const <Map<String, dynamic>>[];
+      final rows = SignedTracerFilter.keepSignedOnly(
+        (rawRows as List)
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList(),
+        signedRecords: signedRecords,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _allRows = rows;
+        _report = reportDecoded is Map
+            ? Map<String, dynamic>.from(reportDecoded['report'] ?? const {})
+            : <String, dynamic>{};
+        _applyFilters();
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load career reports: $e')),
+      );
+    }
+  }
+
+  void _applyFilters() {
+    _rows = _allRows.where((row) {
+      final batch = (row['year_graduated'] ?? '').toString();
+      final status = (row['employment_status'] ?? '').toString();
+
+      final matchesBatch =
+          selectedBatch == 'All Batches' || batch == selectedBatch;
+      final matchesStatus =
+          selectedStatus == 'All Status' || status == selectedStatus;
+
+      return matchesBatch && matchesStatus;
+    }).toList();
+  }
+
+  List<String> get _batchOptions {
+    final batches =
+        _allRows
+            .map((row) => (row['year_graduated'] ?? '').toString())
+            .where((value) => value.isNotEmpty && value != 'null')
+            .toSet()
+            .toList()
+          ..sort();
+    return ['All Batches', ...batches];
+  }
+
+  Map<String, int> _countBy(String key) {
+    final counts = <String, int>{};
+    for (final row in _rows) {
+      final label = (row[key] ?? 'Unspecified').toString().trim();
+      final normalized = label.isEmpty || label == 'null'
+          ? 'Unspecified'
+          : label;
+      counts[normalized] = (counts[normalized] ?? 0) + 1;
+    }
+    return counts;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isNarrow = width < 900;
+    final isCompact = width < 640;
+    final total = _rows.length;
+    final employed = _rows.where((row) {
+      final status = (row['employment_status'] ?? '').toString().toLowerCase();
+      return status == 'employed' ||
+          status == 'self-employed' ||
+          status == 'employer';
+    }).length;
+    final unemployed = _rows
+        .where(
+          (row) => (row['employment_status'] ?? '').toString() == 'Unemployed',
+        )
+        .length;
+    final rate = total == 0 ? 0 : ((employed / total) * 100).round();
+
     return Scaffold(
       backgroundColor: bgLight,
-      appBar: AppBar(
-        title: const Text(
-          "Career Reports",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.print_outlined)),
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: ElevatedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.download_rounded, size: 18),
-              label: const Text("Export CSV/PDF"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryMaroon,
-                foregroundColor: Colors.white,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1280),
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(isCompact ? 16 : 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(isCompact ? 20 : 28),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(28),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [primaryMaroon, const Color(0xFF6C1F3D)],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primaryMaroon.withValues(alpha: 0.16),
+                              blurRadius: 24,
+                              offset: const Offset(0, 14),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Text(
+                                'Dean Reports',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Live Career Reports',
+                              style: TextStyle(
+                                fontSize: 30,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _assignedProgram == null
+                                  ? 'Filter live tracer records by program, batch, and employment status to review department-level insights.'
+                                  : 'Filter live tracer records for $_assignedProgram by batch and employment status to review department-level insights.',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.82),
+                                fontSize: 14,
+                                height: 1.5,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _buildFilterSection(),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final cardWidth = constraints.maxWidth >= 1180
+                              ? (constraints.maxWidth - 48) / 4
+                              : constraints.maxWidth >= 760
+                              ? (constraints.maxWidth - 16) / 2
+                              : constraints.maxWidth;
+                          return Wrap(
+                            spacing: 16,
+                            runSpacing: 16,
+                            children: [
+                              _buildSummaryCard(
+                                'Graduates',
+                                '$total',
+                                Icons.people,
+                                Colors.blue,
+                                cardWidth,
+                              ),
+                              _buildSummaryCard(
+                                'Employed',
+                                '$employed',
+                                Icons.work,
+                                Colors.green,
+                                cardWidth,
+                              ),
+                              _buildSummaryCard(
+                                'Unemployed',
+                                '$unemployed',
+                                Icons.person_off,
+                                Colors.red,
+                                cardWidth,
+                              ),
+                              _buildSummaryCard(
+                                'Rate',
+                                '$rate%',
+                                Icons.trending_up,
+                                accentGold,
+                                cardWidth,
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      _buildChartContainer(
+                        title: 'Employment Status Distribution',
+                        child: _buildBarChart(_countBy('employment_status')),
+                        height: 340,
+                      ),
+                      const SizedBox(height: 24),
+                      if (isNarrow)
+                        Column(
+                          children: [
+                            _buildChartContainer(
+                              title: 'Industry Distribution',
+                              child: _buildPieChart(_countBy('sector')),
+                              height: 340,
+                            ),
+                            const SizedBox(height: 24),
+                            _buildChartContainer(
+                              title: 'Salary Distribution (PHP)',
+                              child: _buildBarChart(_countBy('monthly_income')),
+                              height: 340,
+                            ),
+                          ],
+                        )
+                      else
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _buildChartContainer(
+                                title: 'Industry Distribution',
+                                child: _buildPieChart(_countBy('sector')),
+                                height: 340,
+                              ),
+                            ),
+                            const SizedBox(width: 24),
+                            Expanded(
+                              child: _buildChartContainer(
+                                title: 'Salary Distribution (PHP)',
+                                child: _buildBarChart(
+                                  _countBy('monthly_income'),
+                                ),
+                                height: 340,
+                              ),
+                            ),
+                          ],
+                        ),
+                      const SizedBox(height: 24),
+                      if (isNarrow)
+                        Column(
+                          children: [
+                            _buildChartContainer(
+                              title: 'Job Relevance',
+                              child: _buildPieChart(_countBy('related_job')),
+                              height: 340,
+                            ),
+                            const SizedBox(height: 24),
+                            _buildChartContainer(
+                              title: 'Report Highlights',
+                              child: _buildHighlights(),
+                              height: 340,
+                            ),
+                          ],
+                        )
+                      else
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _buildChartContainer(
+                                title: 'Job Relevance',
+                                child: _buildPieChart(_countBy('related_job')),
+                                height: 340,
+                              ),
+                            ),
+                            const SizedBox(width: 24),
+                            Expanded(
+                              child: _buildChartContainer(
+                                title: 'Report Highlights',
+                                child: _buildHighlights(),
+                                height: 340,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ),
+    );
+  }
+
+  Widget _buildFilterSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+      ),
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 14,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(right: 4),
+            child: Icon(Icons.filter_alt_outlined, color: accentGold),
+          ),
+          if (_assignedProgram == null)
+            _buildDropdown('Program', selectedProgram, _programOptions, (v) {
+              if (v == null) return;
+              setState(() {
+                selectedProgram = v;
+                selectedBatch = 'All Batches';
+                selectedStatus = 'All Status';
+              });
+              _fetchReports();
+            })
+          else
+            _buildLockedProgramBadge(),
+          _buildDropdown('Batch', selectedBatch, _batchOptions, (v) {
+            if (v == null) return;
+            setState(() {
+              selectedBatch = v;
+              _applyFilters();
+            });
+          }),
+          _buildDropdown(
+            'Status',
+            selectedStatus,
+            const [
+              'All Status',
+              'Employed',
+              'Unemployed',
+              'Self-Employed',
+              'Employer',
+            ],
+            (v) {
+              if (v == null) return;
+              setState(() {
+                selectedStatus = v;
+                _applyFilters();
+              });
+            },
           ),
         ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            /// 1. DYNAMIC FILTER SECTION
-            _buildFilterSection(),
-            const SizedBox(height: 24),
-
-            /// 2. SUMMARY CARDS
-            Row(
-              children: [
-                _buildSummaryCard(
-                  "Graduates",
-                  "120",
-                  Icons.people,
-                  Colors.blue,
-                ),
-                const SizedBox(width: 12),
-                _buildSummaryCard("Employed", "95", Icons.work, Colors.green),
-                const SizedBox(width: 12),
-                _buildSummaryCard(
-                  "Unemployed",
-                  "15",
-                  Icons.person_off,
-                  Colors.red,
-                ),
-                const SizedBox(width: 12),
-                _buildSummaryCard("Rate", "79%", Icons.trending_up, accentGold),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            /// 3. MAIN CHARTS GRID
-            // A. Employment Rate (Full Width Bar Chart)
-            _buildChartContainer(
-              title: "Employment Rate per Batch (%)",
-              child: _buildBarChart(),
-              height: 300,
-            ),
-            const SizedBox(height: 24),
-
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // B. Industry Distribution (Pie)
-                Expanded(
-                  child: _buildChartContainer(
-                    title: "Industry Distribution",
-                    child: _buildPieChart(isIndustry: true),
-                    height: 300,
-                  ),
-                ),
-                const SizedBox(width: 24),
-                // C. Salary Distribution (Bar)
-                Expanded(
-                  child: _buildChartContainer(
-                    title: "Salary Distribution (PHP)",
-                    child: _buildSalaryChart(),
-                    height: 300,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // D. Job Relevance (Pie)
-                Expanded(
-                  child: _buildChartContainer(
-                    title: "Job Relevance",
-                    child: _buildPieChart(isIndustry: false),
-                    height: 300,
-                  ),
-                ),
-                const SizedBox(width: 24),
-                // E. Employment Classification (Bar)
-                Expanded(
-                  child: _buildChartContainer(
-                    title: "Employment Classification",
-                    child: _buildClassificationChart(),
-                    height: 300,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
 
-  /// UI COMPONENT: Filter Bar
-  Widget _buildFilterSection() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-          ),
-        ],
-      ),
-      child: Row(
+  Widget _buildLockedProgramBadge() {
+    return SizedBox(
+      width: 180,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.filter_alt_outlined, color: Colors.grey),
-          const SizedBox(width: 16),
-          _buildDropdown("Program", selectedProgram, [
-            "BSIT",
-            "BSCS",
-            "BSHM",
-          ], (v) => setState(() => selectedProgram = v!)),
-          const SizedBox(width: 24),
-          _buildDropdown("Batch", selectedBatch, [
-            "2020",
-            "2021",
-            "2022",
-          ], (v) => setState(() => selectedBatch = v!)),
-          const SizedBox(width: 24),
-          _buildDropdown("Status", selectedStatus, [
-            "All Status",
-            "Employed",
-            "Unemployed",
-          ], (v) => setState(() => selectedStatus = v!)),
-          const Spacer(),
-          TextButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.refresh),
-            label: const Text("Refresh Data"),
-            style: TextButton.styleFrom(foregroundColor: primaryMaroon),
+          Text(
+            'Program',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.white.withValues(alpha: 0.82),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.lock_outline, color: accentGold, size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _assignedProgram ?? selectedProgram,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -194,27 +486,40 @@ class _CareerReportsPageState extends State<CareerReportsPage> {
     List<String> items,
     ValueChanged<String?> onChanged,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey,
+    return SizedBox(
+      width: 180,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.white.withValues(alpha: 0.82),
+            ),
           ),
-        ),
-        DropdownButton<String>(
-          value: value,
-          isDense: true,
-          underline: const SizedBox(),
-          items: items
-              .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-              .toList(),
-          onChanged: onChanged,
-        ),
-      ],
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor),
+            ),
+            child: DropdownButton<String>(
+              value: items.contains(value) ? value : items.first,
+              isExpanded: true,
+              isDense: true,
+              underline: const SizedBox(),
+              items: items
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .toList(),
+              onChanged: onChanged,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -223,18 +528,33 @@ class _CareerReportsPageState extends State<CareerReportsPage> {
     String value,
     IconData icon,
     Color color,
+    double cardWidth,
   ) {
-    return Expanded(
+    return SizedBox(
+      width: cardWidth,
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: borderColor),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 16,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 8),
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: color.withValues(alpha: 0.12),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(height: 16),
             Text(
               value,
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
@@ -259,7 +579,15 @@ class _CareerReportsPageState extends State<CareerReportsPage> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -275,133 +603,125 @@ class _CareerReportsPageState extends State<CareerReportsPage> {
     );
   }
 
-  /// --- CHART LOGIC (MOCK DATA) ---
+  Widget _buildBarChart(Map<String, int> counts) {
+    final entries = counts.entries.toList();
+    if (entries.isEmpty) {
+      return const Center(child: Text('No chart data available.'));
+    }
 
-  Widget _buildBarChart() {
     return BarChart(
       BarChartData(
         backgroundColor: Colors.transparent,
+        alignment: BarChartAlignment.spaceAround,
         barGroups: [
-          BarChartGroupData(
-            x: 2020,
-            barRods: [BarChartRodData(toY: 75, color: accentGold, width: 20)],
-          ),
-          BarChartGroupData(
-            x: 2021,
-            barRods: [BarChartRodData(toY: 80, color: accentGold, width: 20)],
-          ),
-          BarChartGroupData(
-            x: 2022,
-            barRods: [
-              BarChartRodData(toY: 85, color: primaryMaroon, width: 20),
-            ],
-          ),
-        ],
-        borderData: FlBorderData(show: false),
-        gridData: const FlGridData(show: false),
-      ),
-    );
-  }
-
-  Widget _buildPieChart({required bool isIndustry}) {
-    return PieChart(
-      PieChartData(
-        sections: isIndustry
-            ? [
-                PieChartSectionData(
-                  value: 40,
-                  color: primaryMaroon,
-                  title: 'IT',
-                  radius: 50,
-                  titleStyle: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                  ),
-                ),
-                PieChartSectionData(
-                  value: 20,
-                  color: accentGold,
-                  title: 'Biz',
-                  radius: 50,
-                ),
-                PieChartSectionData(
-                  value: 15,
-                  color: Colors.blue,
-                  title: 'Edu',
-                  radius: 50,
-                ),
-                PieChartSectionData(
-                  value: 25,
-                  color: Colors.grey,
-                  title: 'Other',
-                  radius: 50,
-                ),
-              ]
-            : [
-                PieChartSectionData(
-                  value: 70,
-                  color: Colors.green,
-                  title: 'Related',
-                  radius: 50,
-                  titleStyle: const TextStyle(color: Colors.white),
-                ),
-                PieChartSectionData(
-                  value: 30,
-                  color: Colors.red,
-                  title: 'Not Related',
-                  radius: 50,
-                  titleStyle: const TextStyle(color: Colors.white),
+          for (var i = 0; i < entries.length; i++)
+            BarChartGroupData(
+              x: i,
+              barRods: [
+                BarChartRodData(
+                  toY: entries[i].value.toDouble(),
+                  color: i.isEven ? primaryMaroon : accentGold,
+                  width: 20,
                 ),
               ],
-      ),
-    );
-  }
-
-  Widget _buildSalaryChart() {
-    return BarChart(
-      BarChartData(
-        barGroups: [
-          BarChartGroupData(
-            x: 0,
-            barRods: [BarChartRodData(toY: 10, color: Colors.grey)],
-          ),
-          BarChartGroupData(
-            x: 1,
-            barRods: [BarChartRodData(toY: 30, color: Colors.grey)],
-          ),
-          BarChartGroupData(
-            x: 2,
-            barRods: [BarChartRodData(toY: 35, color: primaryMaroon)],
-          ),
-          BarChartGroupData(
-            x: 3,
-            barRods: [BarChartRodData(toY: 25, color: accentGold)],
-          ),
+            ),
         ],
+        titlesData: FlTitlesData(
+          leftTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: true, reservedSize: 32),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index < 0 || index >= entries.length) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _shortLabel(entries[index].key),
+                    style: const TextStyle(fontSize: 10),
+                    textAlign: TextAlign.center,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
         borderData: FlBorderData(show: false),
       ),
     );
   }
 
-  Widget _buildClassificationChart() {
-    return BarChart(
-      BarChartData(
-        barGroups: [
-          BarChartGroupData(
-            x: 0,
-            barRods: [BarChartRodData(toY: 50, color: primaryMaroon)],
-          ), // Rank & File
-          BarChartGroupData(
-            x: 1,
-            barRods: [BarChartRodData(toY: 20, color: Colors.blue)],
-          ), // Supervisor
-          BarChartGroupData(
-            x: 2,
-            barRods: [BarChartRodData(toY: 10, color: accentGold)],
-          ), // Manager
+  Widget _buildPieChart(Map<String, int> counts) {
+    final entries = counts.entries.toList();
+    if (entries.isEmpty) {
+      return const Center(child: Text('No chart data available.'));
+    }
+
+    final colors = [
+      primaryMaroon,
+      accentGold,
+      Colors.blue,
+      Colors.green,
+      Colors.orange,
+      Colors.grey,
+    ];
+
+    return PieChart(
+      PieChartData(
+        sections: [
+          for (var i = 0; i < entries.length; i++)
+            PieChartSectionData(
+              value: entries[i].value.toDouble(),
+              color: colors[i % colors.length],
+              title: entries[i].key.length > 12
+                  ? '${entries[i].key.substring(0, 12)}...'
+                  : entries[i].key,
+              radius: 50,
+              titleStyle: const TextStyle(color: Colors.white, fontSize: 10),
+            ),
         ],
-        borderData: FlBorderData(show: false),
       ),
     );
+  }
+
+  Widget _buildHighlights() {
+    final findings = ((_report['findings'] ?? []) as List)
+        .map((item) => item.toString())
+        .take(4)
+        .toList();
+
+    if (findings.isEmpty) {
+      return const Center(child: Text('No report highlights available.'));
+    }
+
+    return ListView.separated(
+      itemCount: findings.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemBuilder: (context, index) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: bgLight,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Text(findings[index], style: const TextStyle(height: 1.45)),
+      ),
+    );
+  }
+
+  String _shortLabel(String value) {
+    final trimmed = value.trim();
+    if (trimmed.length <= 14) return trimmed;
+    return '${trimmed.substring(0, 14)}...';
   }
 }

@@ -37,8 +37,11 @@ dependencies:
   font_awesome_flutter: ^10.12.0
   url_launcher: ^6.3.1
   http: ^1.1.0
+  shared_preferences: ^2.5.3
   intl: ^0.18.0
   signature: ^5.4.0
+  pdf: ^3.11.1
+  printing: ^5.13.4
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -69,6 +72,7 @@ flutter:
     - assets/logo.png
     - assets/jmc.jpg
     - assets/download.png
+    - assets/jmclogo.png
   
   #   - images/a_dot_ham.jpeg
 

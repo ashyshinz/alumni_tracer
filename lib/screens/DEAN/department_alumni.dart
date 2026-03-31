@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'dart:async';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+
 import '../../services/api_service.dart';
 
 class DepartmentAlumniPage extends StatefulWidget {
@@ -15,13 +20,12 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
   final Color primaryMaroon = const Color(0xFF4A152C);
   final Color bgLight = const Color(0xFFF7F8FA);
   final Color accentGold = const Color(0xFFC5A046);
+  final Color borderColor = const Color(0xFFE5E7EB);
 
-  // Filter States
   String selectedProgram = "BSIT";
   String selectedBatch = "2022";
   String selectedStatus = "All Status";
 
-  // Data State
   List<dynamic> _filteredAlumni = [];
   Map<String, dynamic> _summary = {
     "total_graduates": 0,
@@ -30,19 +34,19 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
     "job_alignment": "0%",
   };
   bool _isLoading = true;
+  bool _isExportingReport = false;
   Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
-    _fetchAlumniData(); // Initial load
+    _fetchAlumniData();
     _autoRefreshTimer = Timer.periodic(
       const Duration(seconds: 20),
       (_) => _fetchAlumniData(showLoader: false),
     );
   }
 
-  // --- FIXED: Added mounted check for BuildContext usage
   Future<void> _fetchAlumniData({bool showLoader = true}) async {
     if (showLoader) setState(() => _isLoading = true);
     try {
@@ -59,7 +63,7 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (!mounted) return; // <-- FIX
+        if (!mounted) return;
         setState(() {
           _filteredAlumni = data['alumni'];
           _summary = data['summary'];
@@ -67,7 +71,7 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
         });
       }
     } catch (e) {
-      if (!mounted) return; // <-- FIX
+      if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Failed to connect to server")),
@@ -81,113 +85,497 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: bgLight,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          /// 1. HEADER
-          Padding(
-            padding: const EdgeInsets.fromLTRB(32, 32, 32, 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+  Future<void> _downloadAccreditationReport() async {
+    if (_isExportingReport) return;
+
+    setState(() => _isExportingReport = true);
+    try {
+      final pdf = pw.Document();
+      final generatedOn = DateTime.now();
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageTheme: const pw.PageTheme(margin: pw.EdgeInsets.all(32)),
+          build: (context) {
+            return [
+              pw.Container(
+                padding: const pw.EdgeInsets.all(18),
+                decoration: pw.BoxDecoration(
+                  color: PdfColor.fromHex('#4A152C'),
+                  borderRadius: pw.BorderRadius.circular(14),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      "Department Alumni Analysis",
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
+                    pw.Text(
+                      'Department Accreditation Report',
+                      style: pw.TextStyle(
+                        color: PdfColors.white,
+                        fontSize: 22,
+                        fontWeight: pw.FontWeight.bold,
                       ),
                     ),
-                    Text(
-                      "Supporting Accreditation & Program Monitoring • $selectedProgram",
-                      style: TextStyle(color: Colors.grey.shade600),
+                    pw.SizedBox(height: 6),
+                    pw.Text(
+                      'Program: $selectedProgram',
+                      style: const pw.TextStyle(
+                        color: PdfColors.white,
+                        fontSize: 12,
+                      ),
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'Batch Filter: $selectedBatch | Status Filter: $selectedStatus',
+                      style: const pw.TextStyle(
+                        color: PdfColors.white,
+                        fontSize: 11,
+                      ),
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'Generated on ${_formatReportDate(generatedOn)}',
+                      style: const pw.TextStyle(
+                        color: PdfColors.white,
+                        fontSize: 11,
+                      ),
                     ),
                   ],
                 ),
-                ElevatedButton.icon(
-                  onPressed: () {}, // Export PDF Logic here
-                  icon: const Icon(Icons.picture_as_pdf, size: 18),
-                  label: const Text("Export Accreditation Report"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: primaryMaroon,
-                    side: BorderSide(
-                      color: primaryMaroon.withValues(alpha: 0.5),
+              ),
+              pw.SizedBox(height: 18),
+              pw.Text(
+                'Summary Metrics',
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 16,
+                  color: PdfColor.fromHex('#4A152C'),
+                ),
+              ),
+              pw.SizedBox(height: 10),
+              pw.Table(
+                border: pw.TableBorder.all(color: PdfColor.fromHex('#D7D7D7')),
+                children: [
+                  _pdfRow(['Metric', 'Value'], isHeader: true),
+                  _pdfRow([
+                    'Total Graduates',
+                    '${_summary['total_graduates'] ?? 0}',
+                  ]),
+                  _pdfRow(['Employed', '${_summary['employed'] ?? 0}']),
+                  _pdfRow([
+                    'Employment Rate',
+                    '${_summary['employment_rate'] ?? '0%'}',
+                  ]),
+                  _pdfRow([
+                    'Job Alignment',
+                    '${_summary['job_alignment'] ?? '0%'}',
+                  ]),
+                ],
+              ),
+              pw.SizedBox(height: 18),
+              pw.Text(
+                'Accreditation Notes',
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 16,
+                  color: PdfColor.fromHex('#4A152C'),
+                ),
+              ),
+              pw.SizedBox(height: 8),
+              ..._pdfBulletList([
+                'The current $selectedProgram alumni data supports department-level accreditation review and graduate outcome monitoring.',
+                'Employment rate and job alignment indicators provide evidence for curriculum relevance and employability.',
+                'The filtered alumni list below can be used as a reference for program-level validation and supporting documentation.',
+              ]),
+              pw.SizedBox(height: 18),
+              pw.Text(
+                'Filtered Alumni Records',
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 16,
+                  color: PdfColor.fromHex('#4A152C'),
+                ),
+              ),
+              pw.SizedBox(height: 10),
+              _filteredAlumni.isEmpty
+                  ? pw.Text(
+                      'No alumni records found for the current filter selection.',
+                    )
+                  : pw.Table(
+                      border: pw.TableBorder.all(
+                        color: PdfColor.fromHex('#D7D7D7'),
+                      ),
+                      columnWidths: {
+                        0: const pw.FlexColumnWidth(2.3),
+                        1: const pw.FlexColumnWidth(0.9),
+                        2: const pw.FlexColumnWidth(1.3),
+                        3: const pw.FlexColumnWidth(2),
+                        4: const pw.FlexColumnWidth(1.2),
+                      },
+                      children: [
+                        _pdfRow([
+                          'Name',
+                          'Year',
+                          'Status',
+                          'Company',
+                          'Alignment',
+                        ], isHeader: true),
+                        ..._filteredAlumni.map((alumni) {
+                          final alignment = alumni['alignment'] == true
+                              ? 'Aligned'
+                              : 'Review Needed';
+                          return _pdfRow([
+                            (alumni['name'] ?? 'N/A').toString(),
+                            (alumni['year'] ?? 'N/A').toString(),
+                            (alumni['status'] ?? 'N/A').toString(),
+                            (alumni['company'] ?? 'N/A').toString(),
+                            alignment,
+                          ]);
+                        }),
+                      ],
                     ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 15,
-                    ),
+            ];
+          },
+        ),
+      );
+
+      final bytes = await pdf.save();
+      final filename =
+          '${selectedProgram.toLowerCase()}_accreditation_report_${generatedOn.millisecondsSinceEpoch}.pdf';
+      await Printing.sharePdf(bytes: bytes, filename: filename);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Accreditation report ready: $filename'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to export accreditation report: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isExportingReport = false);
+      }
+    }
+  }
+
+  pw.TableRow _pdfRow(List<String> values, {bool isHeader = false}) {
+    return pw.TableRow(
+      decoration: pw.BoxDecoration(
+        color: isHeader ? PdfColor.fromHex('#F3E9ED') : PdfColors.white,
+      ),
+      children: values
+          .map(
+            (value) => pw.Padding(
+              padding: const pw.EdgeInsets.all(8),
+              child: pw.Text(
+                value,
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: isHeader ? pw.FontWeight.bold : null,
+                ),
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  List<pw.Widget> _pdfBulletList(List<String> items) {
+    return items
+        .map(
+          (item) => pw.Padding(
+            padding: const pw.EdgeInsets.only(bottom: 6),
+            child: pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  '- ',
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                ),
+                pw.Expanded(
+                  child: pw.Text(
+                    item,
+                    style: const pw.TextStyle(fontSize: 11, lineSpacing: 2),
                   ),
                 ),
               ],
             ),
           ),
+        )
+        .toList();
+  }
 
-          /// 2. DYNAMIC METRIC CARDS
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Row(
-              children: [
-                _buildMetricCard(
-                  "Total Graduates",
-                  "${_summary['total_graduates']}",
-                  Icons.people,
-                  Colors.blue,
-                ),
-                const SizedBox(width: 16),
-                _buildMetricCard(
-                  "Employed",
-                  "${_summary['employed']}",
-                  Icons.work,
-                  Colors.green,
-                ),
-                const SizedBox(width: 16),
-                _buildMetricCard(
-                  "Employment Rate",
-                  "${_summary['employment_rate']}",
-                  Icons.trending_up,
-                  accentGold,
-                ),
-                const SizedBox(width: 16),
-                _buildMetricCard(
-                  "Job Alignment",
-                  "${_summary['job_alignment']}",
-                  Icons.check_circle_outline,
-                  Colors.purple,
-                ),
-              ],
+  String _formatReportDate(DateTime date) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [const Color(0xFFF7F1E7), bgLight, Colors.white],
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final contentWidth = constraints.maxWidth;
+          final isCompact = contentWidth < 640;
+          final isHeroStacked = contentWidth < 900;
+          final horizontalPadding = isCompact ? 16.0 : 32.0;
+          final tableHeight = isCompact ? 420.0 : 520.0;
+
+          return ListView(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              isCompact ? 16 : 32,
+              horizontalPadding,
+              isCompact ? 16 : 32,
             ),
-          ),
-
-          /// 3. FILTER BAR
-          _buildFilterBar(),
-
-          /// 4. DATA TABLE (LIVE)
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.fromLTRB(32, 0, 32, 32),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
+            children: [
+              Container(
+                padding: EdgeInsets.all(isCompact ? 20 : 28),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(28),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [primaryMaroon, const Color(0xFF6C1F3D)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: primaryMaroon.withValues(alpha: 0.16),
+                      blurRadius: 24,
+                      offset: const Offset(0, 14),
+                    ),
+                  ],
+                ),
+                child: isHeroStacked
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: const Text(
+                              'Dean Analytics',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            "Department Alumni Analysis",
+                            style: TextStyle(
+                              fontSize: 30,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "Supporting accreditation and program monitoring for $selectedProgram with a clearer view of graduate outcomes.",
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.82),
+                              height: 1.5,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _isLoading || _isExportingReport
+                                  ? null
+                                  : _downloadAccreditationReport,
+                              icon: const Icon(Icons.picture_as_pdf, size: 18),
+                              label: Text(
+                                _isExportingReport
+                                    ? "Preparing Report..."
+                                    : "Export Accreditation Report",
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(0, 52),
+                                side: BorderSide(
+                                  color: Colors.white.withValues(alpha: 0.30),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.14),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: const Text(
+                                    'Dean Analytics',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  "Department Alumni Analysis",
+                                  style: TextStyle(
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  "Supporting accreditation and program monitoring for $selectedProgram with a clearer view of graduate outcomes.",
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.82),
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          OutlinedButton.icon(
+                            onPressed: _isLoading || _isExportingReport
+                                ? null
+                                : _downloadAccreditationReport,
+                            icon: const Icon(Icons.picture_as_pdf, size: 18),
+                            label: Text(
+                              _isExportingReport
+                                  ? "Preparing Report..."
+                                  : "Export Accreditation Report",
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(0, 52),
+                              side: BorderSide(
+                                color: Colors.white.withValues(alpha: 0.30),
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
               ),
-              child: _isLoading
-                  ? Center(
-                      child: CircularProgressIndicator(color: primaryMaroon),
-                    )
-                  : _filteredAlumni.isEmpty
-                  ? const Center(child: Text("No records found."))
-                  : _buildDataTable(),
-            ),
-          ),
-        ],
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                children: [
+                  _buildMetricCard(
+                    "Total Graduates",
+                    "${_summary['total_graduates']}",
+                    Icons.people,
+                    Colors.blue,
+                    contentWidth,
+                  ),
+                  _buildMetricCard(
+                    "Employed",
+                    "${_summary['employed']}",
+                    Icons.work,
+                    Colors.green,
+                    contentWidth,
+                  ),
+                  _buildMetricCard(
+                    "Employment Rate",
+                    "${_summary['employment_rate']}",
+                    Icons.trending_up,
+                    accentGold,
+                    contentWidth,
+                  ),
+                  _buildMetricCard(
+                    "Job Alignment",
+                    "${_summary['job_alignment']}",
+                    Icons.check_circle_outline,
+                    Colors.purple,
+                    contentWidth,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildFilterBar(),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: tableHeight,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: borderColor),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.035),
+                        blurRadius: 18,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: _isLoading
+                      ? Center(
+                          child: CircularProgressIndicator(
+                            color: primaryMaroon,
+                          ),
+                        )
+                      : _filteredAlumni.isEmpty
+                      ? const Center(child: Text("No records found."))
+                      : _buildDataTable(),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -283,43 +671,74 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
   }
 
   Widget _buildFilterBar() {
+    final isCompact = MediaQuery.of(context).size.width < 900;
     return Container(
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
-      child: Row(
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 12,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           _buildDropdownFilter("Program", selectedProgram, [
             "BSIT",
             "BSCS",
             "BSHM",
           ], (v) => setState(() => selectedProgram = v!)),
-          const SizedBox(width: 24),
           _buildDropdownFilter("Batch", selectedBatch, [
             "2021",
             "2022",
             "2023",
           ], (v) => setState(() => selectedBatch = v!)),
-          const SizedBox(width: 24),
           _buildDropdownFilter("Status", selectedStatus, [
             "All Status",
             "Employed",
             "Unemployed",
             "Further Studies",
           ], (v) => setState(() => selectedStatus = v!)),
-          const Spacer(),
-          ElevatedButton(
-            onPressed: _fetchAlumniData,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryMaroon,
-              foregroundColor: Colors.white,
+          if (isCompact)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _fetchAlumniData,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryMaroon,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: const Text("Apply Filter"),
+              ),
+            )
+          else
+            ElevatedButton(
+              onPressed: _fetchAlumniData,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryMaroon,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Text("Apply Filter"),
             ),
-            child: const Text("Apply Filter"),
-          ),
         ],
       ),
     );
@@ -330,19 +749,41 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
     String value,
     IconData icon,
     Color color,
+    double contentWidth,
   ) {
-    return Expanded(
+    final cardWidth = contentWidth >= 1180
+        ? (contentWidth - 48) / 4
+        : contentWidth >= 760
+        ? (contentWidth - 16) / 2
+        : double.infinity;
+    return SizedBox(
+      width: cardWidth,
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border(bottom: BorderSide(color: color, width: 3)),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: borderColor),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 16,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color, size: 20),
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
             const SizedBox(height: 12),
             Text(
               value,
@@ -379,14 +820,23 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        DropdownButton<String>(
-          value: value,
-          underline: const SizedBox(),
-          isDense: true,
-          items: items
-              .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-              .toList(),
-          onChanged: onChanged,
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: bgLight,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: borderColor),
+          ),
+          child: DropdownButton<String>(
+            value: value,
+            underline: const SizedBox(),
+            isDense: true,
+            items: items
+                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                .toList(),
+            onChanged: onChanged,
+          ),
         ),
       ],
     );

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../../services/activity_service.dart';
 import 'dart:async';
 import '../../services/api_service.dart';
+import 'user_history_page.dart';
 
 class AlumniList extends StatefulWidget {
   const AlumniList({super.key});
@@ -15,6 +17,8 @@ class _AlumniListState extends State<AlumniList> {
   final Color primaryMaroon = const Color(0xFF4A152C);
   final Color bgLight = const Color(0xFFF8F9FA);
   final Color borderColor = const Color(0xFFE0E0E0);
+  final Color accentGold = const Color(0xFFC5A046);
+  final Color cardBorder = const Color(0xFFE5E7EB);
 
   List<dynamic> allAlumni = [];
   List<dynamic> filteredAlumni = [];
@@ -39,9 +43,7 @@ class _AlumniListState extends State<AlumniList> {
   Future<void> fetchAlumni({bool showLoader = true}) async {
     if (showLoader) setState(() => isLoading = true);
     try {
-      final response = await http.get(
-        ApiService.uri('get_alumni_list.php'),
-      );
+      final response = await http.get(ApiService.uri('get_alumni_list.php'));
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         setState(() {
@@ -93,6 +95,15 @@ class _AlumniListState extends State<AlumniList> {
         );
         final result = json.decode(response.body);
         if (result['success']) {
+          await ActivityService.logImportantFlow(
+            action: 'delete_user',
+            title: 'Admin deleted alumni record for $name',
+            type: 'User Management',
+            userId: int.tryParse(id),
+            userName: name,
+            role: 'admin',
+            metadata: {'deleted_user_id': id},
+          );
           _showSnackBar("Alumni $name deleted.", Colors.green);
           fetchAlumni();
         }
@@ -134,6 +145,31 @@ class _AlumniListState extends State<AlumniList> {
         ],
       ),
     );
+  }
+
+  void _viewUserHistory(Map<String, dynamic> user) {
+    showDialog(
+      context: context,
+      builder: (context) =>
+          AdminUserHistoryDialog(user: Map<String, dynamic>.from(user)),
+    );
+  }
+
+  Future<void> _handleActionSelection(
+    String action,
+    Map<String, dynamic> user,
+  ) async {
+    switch (action) {
+      case 'view':
+        _viewAlumni(user);
+        break;
+      case 'history':
+        _viewUserHistory(user);
+        break;
+      case 'delete':
+        await _deleteAlumni(user['id'].toString(), user['name']);
+        break;
+    }
   }
 
   void _applyFilters() {
@@ -185,17 +221,18 @@ class _AlumniListState extends State<AlumniList> {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 920;
     return Container(
       color: bgLight,
       child: isLoading
           ? Center(child: CircularProgressIndicator(color: primaryMaroon))
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(32),
+              padding: EdgeInsets.all(isNarrow ? 16 : 32),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildHeader(),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
                   _buildFilterBar(),
                   const SizedBox(height: 24),
                   _buildTableContainer(),
@@ -206,88 +243,246 @@ class _AlumniListState extends State<AlumniList> {
   }
 
   Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Alumni List",
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: primaryMaroon,
-              ),
-            ),
-            Text(
-              "Manage verified graduates in the system.",
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ],
+    final width = MediaQuery.of(context).size.width;
+    final isStacked = width < 980;
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [primaryMaroon, primaryMaroon.withValues(alpha: 0.88)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        OutlinedButton.icon(
-          onPressed: fetchAlumni,
-          icon: const Icon(Icons.refresh),
-          label: const Text("Refresh List"),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: primaryMaroon,
-            side: BorderSide(color: borderColor),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: primaryMaroon.withValues(alpha: 0.18),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
           ),
-        ),
-      ],
+        ],
+      ),
+      child: isStacked
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Icon(
+                    Icons.groups_2_outlined,
+                    color: accentGold,
+                    size: 34,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Alumni List",
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Review verified graduates, browse their records, and access user history in a cleaner management layout.",
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.82),
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: fetchAlumni,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text("Refresh List"),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 52),
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.30),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Icon(
+                    Icons.groups_2_outlined,
+                    color: accentGold,
+                    size: 34,
+                  ),
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Alumni List",
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Review verified graduates, browse their records, and access user history in a cleaner management layout.",
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.82),
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                OutlinedButton.icon(
+                  onPressed: fetchAlumni,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text("Refresh List"),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 52),
+                    side: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.30),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
   Widget _buildFilterBar() {
-    return Row(
-      children: [
-        Expanded(
-          flex: 3,
-          child: TextField(
-            onChanged: (val) {
-              searchQuery = val;
-              _applyFilters();
-            },
-            decoration: InputDecoration(
-              hintText: "Search name or email...",
-              prefixIcon: const Icon(Icons.search),
-              filled: true,
-              fillColor: Colors.white,
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: borderColor),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: primaryMaroon),
-              ),
+    final isNarrow = MediaQuery.of(context).size.width < 920;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: cardBorder),
+      ),
+      child: isNarrow
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildSearchField(),
+                const SizedBox(height: 12),
+                _buildDropdown(
+                  selectedProgram,
+                  ["All Programs", "BSIT", "BSCS", "BSECE"],
+                  (val) {
+                    setState(() {
+                      selectedProgram = val!;
+                      _applyFilters();
+                    });
+                  },
+                ),
+                const SizedBox(height: 12),
+                _buildDropdown(
+                  selectedYear,
+                  ["All Years", "2021", "2022", "2023", "2024"],
+                  (val) {
+                    setState(() {
+                      selectedYear = val!;
+                      _applyFilters();
+                    });
+                  },
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(flex: 3, child: _buildSearchField()),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildDropdown(
+                    selectedProgram,
+                    ["All Programs", "BSIT", "BSCS", "BSECE"],
+                    (val) {
+                      setState(() {
+                        selectedProgram = val!;
+                        _applyFilters();
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildDropdown(
+                    selectedYear,
+                    ["All Years", "2021", "2022", "2023", "2024"],
+                    (val) {
+                      setState(() {
+                        selectedYear = val!;
+                        _applyFilters();
+                      });
+                    },
+                  ),
+                ),
+              ],
             ),
-          ),
+    );
+  }
+
+  Widget _buildSearchField() {
+    return TextField(
+      onChanged: (val) {
+        searchQuery = val;
+        _applyFilters();
+      },
+      decoration: InputDecoration(
+        hintText: "Search name or email...",
+        prefixIcon: const Icon(Icons.search),
+        filled: true,
+        fillColor: const Color(0xFFF8F9FA),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: cardBorder),
         ),
-        const SizedBox(width: 16),
-        _buildDropdown(
-          selectedProgram,
-          ["All Programs", "BSIT", "BSCS", "BSECE"],
-          (val) {
-            setState(() {
-              selectedProgram = val!;
-              _applyFilters();
-            });
-          },
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: primaryMaroon),
         ),
-        const SizedBox(width: 16),
-        _buildDropdown(
-          selectedYear,
-          ["All Years", "2021", "2022", "2023", "2024"],
-          (val) {
-            setState(() {
-              selectedYear = val!;
-              _applyFilters();
-            });
-          },
-        ),
-      ],
+      ),
     );
   }
 
@@ -297,15 +492,17 @@ class _AlumniListState extends State<AlumniList> {
     ValueChanged<String?> onChanged,
   ) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: borderColor),
+        color: const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cardBorder),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: val,
+          isExpanded: true,
           items: items
               .map((e) => DropdownMenuItem(value: e, child: Text(e)))
               .toList(),
@@ -320,71 +517,141 @@ class _AlumniListState extends State<AlumniList> {
       width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: cardBorder),
       ),
-      child: DataTable(
-        headingRowColor: WidgetStateProperty.all(bgLight),
-        columns: const [
-          DataColumn(label: Text("NAME")),
-          DataColumn(label: Text("PROGRAM")),
-          DataColumn(label: Text("YEAR")),
-          DataColumn(label: Text("STATUS")),
-          DataColumn(label: Text("ACTIONS")),
-        ],
-        rows: filteredAlumni
-            .map(
-              (user) => DataRow(
-                cells: [
-                  DataCell(
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          user['name'] ?? 'N/A',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          user['email'] ?? 'N/A',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  DataCell(Text(user['program'] ?? 'N/A')),
-                  DataCell(Text(user['year']?.toString() ?? 'N/A')),
-                  DataCell(_statusBadge(user['status'] ?? 'N/A')),
-                  DataCell(
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.visibility_outlined,
-                            color: Colors.blue,
-                          ),
-                          onPressed: () => _viewAlumni(user),
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.red,
-                          ),
-                          onPressed: () => _deleteAlumni(
-                            user['id'].toString(),
-                            user['name'],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final minTableWidth = constraints.maxWidth < 940
+              ? 940.0
+              : constraints.maxWidth;
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: minTableWidth),
+              child: DataTable(
+                columnSpacing: 24,
+                headingRowColor: WidgetStateProperty.all(bgLight),
+                columns: const [
+                  DataColumn(label: Text("NAME")),
+                  DataColumn(label: Text("PROGRAM")),
+                  DataColumn(label: Text("YEAR")),
+                  DataColumn(label: Text("STATUS")),
+                  DataColumn(label: Text("ACTIONS")),
                 ],
+                rows: filteredAlumni
+                    .map(
+                      (user) => DataRow(
+                        cells: [
+                          DataCell(
+                            SizedBox(
+                              width: 240,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    user['name'] ?? 'N/A',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    user['email'] ?? 'N/A',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            SizedBox(
+                              width: 160,
+                              child: Text(
+                                user['program'] ?? 'N/A',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                          DataCell(Text(user['year']?.toString() ?? 'N/A')),
+                          DataCell(_statusBadge(user['status'] ?? 'N/A')),
+                          DataCell(
+                            SizedBox(
+                              width: 72,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: PopupMenuButton<String>(
+                                  tooltip: 'More actions',
+                                  icon: Icon(
+                                    Icons.more_vert_rounded,
+                                    color: primaryMaroon,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  onSelected: (value) =>
+                                      _handleActionSelection(value, user),
+                                  itemBuilder: (context) => const [
+                                    PopupMenuItem<String>(
+                                      value: 'view',
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.visibility_outlined,
+                                            color: Colors.blue,
+                                            size: 18,
+                                          ),
+                                          SizedBox(width: 10),
+                                          Text('View profile'),
+                                        ],
+                                      ),
+                                    ),
+                                    PopupMenuItem<String>(
+                                      value: 'history',
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.history_outlined,
+                                            color: Color(0xFF4A152C),
+                                            size: 18,
+                                          ),
+                                          SizedBox(width: 10),
+                                          Text('Show history'),
+                                        ],
+                                      ),
+                                    ),
+                                    PopupMenuItem<String>(
+                                      value: 'delete',
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.delete_outline,
+                                            color: Colors.red,
+                                            size: 18,
+                                          ),
+                                          SizedBox(width: 10),
+                                          Text('Delete'),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
               ),
-            )
-            .toList(),
+            ),
+          );
+        },
       ),
     );
   }
