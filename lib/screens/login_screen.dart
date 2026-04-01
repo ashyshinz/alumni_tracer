@@ -6,6 +6,8 @@ import '../services/activity_service.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/linkedin_auth_service.dart';
+import '../utils/email_validator.dart';
+import '../utils/password_policy.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, this.linkedInResult});
@@ -36,13 +38,23 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _handleLogin() async {
+    final emailError = EmailValidator.validate(_emailController.text);
+    if (emailError != null) {
+      _showError(emailError);
+      return;
+    }
+    if (_passwordController.text.isEmpty) {
+      _showError("Password is required.");
+      return;
+    }
+
     setState(() => _isLoading = true);
     final url = ApiService.uri('login.php');
 
     try {
       final response = await http.post(
         url,
-        headers: {"Content-Type": "application/json"},
+        headers: ApiService.jsonHeaders(),
         body: jsonEncode({
           "email": _emailController.text.trim(),
           "password": _passwordController.text,
@@ -66,6 +78,16 @@ class _LoginPageState extends State<LoginPage> {
           data['status'] == 'success' &&
           data['user'] != null) {
         final user = Map<String, dynamic>.from(data['user']);
+        final accessToken = (data['access_token'] ?? data['token'] ?? '')
+            .toString()
+            .trim();
+        final expiresAt = (data['expires_at'] ?? '').toString().trim();
+        if (accessToken.isNotEmpty) {
+          user['access_token'] = accessToken;
+        }
+        if (expiresAt.isNotEmpty) {
+          user['expires_at'] = expiresAt;
+        }
         final role = (user['role'] ?? 'alumni').toString().toLowerCase();
         await AuthService.storeSession(user);
         await ActivityService.logImportantFlow(
@@ -84,7 +106,7 @@ class _LoginPageState extends State<LoginPage> {
         _showError(
           data['message']?.toString() ??
               (response.statusCode == 200
-                  ? "Invalid email or password."
+                  ? "Unable to sign in with the provided credentials."
                   : "Server Error: ${response.statusCode}"),
         );
       }
@@ -117,6 +139,169 @@ class _LoginPageState extends State<LoginPage> {
         ],
       ),
     );
+  }
+
+  Future<Map<String, dynamic>> _requestForgotPassword({
+    required String email,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await http.post(
+        ApiService.uri('forgot_password.php'),
+        headers: ApiService.jsonHeaders(),
+        body: jsonEncode({
+          "email": email.trim(),
+          "newPassword": newPassword,
+        }),
+      );
+
+      final decoded = jsonDecode(response.body);
+      final data = decoded is Map<String, dynamic>
+          ? decoded
+          : <String, dynamic>{};
+      return {
+        'ok': response.statusCode == 200,
+        'message':
+            data['message']?.toString() ??
+            (response.statusCode == 200
+                ? "Password reset successful."
+                : "Unable to reset password."),
+      };
+    } catch (e) {
+      debugPrint("Forgot password error: $e");
+      return {
+        'ok': false,
+        'message': 'Unable to reset password right now.',
+      };
+    }
+  }
+
+  void _showForgotPasswordDialog() {
+    final emailController = TextEditingController(
+      text: _emailController.text.trim(),
+    );
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool isPasswordVisible = false;
+    bool isSubmitting = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogInnerContext, setDialogState) => AlertDialog(
+          title: const Text("Forgot Password"),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(labelText: "Email"),
+                  validator: (value) => EmailValidator.validate(value ?? ''),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: newPasswordController,
+                  obscureText: !isPasswordVisible,
+                  decoration: InputDecoration(
+                    labelText: "New Password",
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        isPasswordVisible
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                      ),
+                      onPressed: () => setDialogState(
+                        () => isPasswordVisible = !isPasswordVisible,
+                      ),
+                    ),
+                  ),
+                  validator: (value) => PasswordPolicy.validate(
+                    value ?? '',
+                    fieldLabel: 'New password',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: confirmPasswordController,
+                  obscureText: !isPasswordVisible,
+                  decoration: const InputDecoration(
+                    labelText: "Confirm New Password",
+                  ),
+                  validator: (value) {
+                    if ((value ?? '').trim().isEmpty) {
+                      return 'Confirm password is required.';
+                    }
+                    if (value != newPasswordController.text) {
+                      return 'Passwords do not match.';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () => Navigator.pop(dialogContext),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      setDialogState(() => isSubmitting = true);
+                      final result = await _requestForgotPassword(
+                        email: emailController.text,
+                        newPassword: newPasswordController.text,
+                      );
+                      if (!mounted) return;
+                      if (dialogContext.mounted) {
+                        Navigator.pop(dialogContext);
+                      }
+                      showDialog(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: Text(
+                            result['ok'] == true
+                                ? "Password Reset"
+                                : "Reset Failed",
+                          ),
+                          content: Text(
+                            result['message']?.toString() ??
+                                'Unable to reset password.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text("OK"),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text("Reset Password"),
+            ),
+          ],
+        ),
+      ),
+    ).then((_) {
+      emailController.dispose();
+      newPasswordController.dispose();
+      confirmPasswordController.dispose();
+    });
   }
 
   Future<void> _startLinkedInSignUp() async {
@@ -253,7 +438,17 @@ class _LoginPageState extends State<LoginPage> {
                       icon: Icons.lock_outline,
                       isPassword: true,
                     ),
-                    const SizedBox(height: 30),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _isLoading ? null : _showForgotPasswordDialog,
+                        child: Text(
+                          "Forgot Password?",
+                          style: TextStyle(color: accentGold),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       height: 50,

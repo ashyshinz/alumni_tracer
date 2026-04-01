@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../../services/activity_service.dart';
 import '../../services/api_service.dart';
 import '../../state/user_store.dart';
 
@@ -16,6 +17,7 @@ class AdminSettings extends StatefulWidget {
 class _AdminSettingsState extends State<AdminSettings> {
   final _profileFormKey = GlobalKey<FormState>();
   final _passwordFormKey = GlobalKey<FormState>();
+  final _provisionFormKey = GlobalKey<FormState>();
 
   late final TextEditingController _firstNameController;
   late final TextEditingController _lastNameController;
@@ -23,6 +25,10 @@ class _AdminSettingsState extends State<AdminSettings> {
   late final TextEditingController _currentPasswordController;
   late final TextEditingController _newPasswordController;
   late final TextEditingController _confirmPasswordController;
+  late final TextEditingController _newUserFirstNameController;
+  late final TextEditingController _newUserLastNameController;
+  late final TextEditingController _newUserEmailController;
+  late final TextEditingController _newUserPasswordController;
 
   bool _emailAnnouncements = true;
   bool _emailReminders = true;
@@ -30,6 +36,9 @@ class _AdminSettingsState extends State<AdminSettings> {
   bool _isSavingProfile = false;
   bool _isSavingSettings = false;
   bool _isSavingPassword = false;
+  bool _isCreatingUser = false;
+  String _provisionRole = 'dean';
+  String _provisionProgram = 'BSIT';
 
   final Color bgLight = const Color(0xFFF8F9FA);
   final Color borderColor = const Color(0xFFE5E7EB);
@@ -53,6 +62,10 @@ class _AdminSettingsState extends State<AdminSettings> {
     _currentPasswordController = TextEditingController();
     _newPasswordController = TextEditingController();
     _confirmPasswordController = TextEditingController();
+    _newUserFirstNameController = TextEditingController();
+    _newUserLastNameController = TextEditingController();
+    _newUserEmailController = TextEditingController();
+    _newUserPasswordController = TextEditingController();
 
     _emailAnnouncements =
         _boolFromUser(
@@ -75,6 +88,10 @@ class _AdminSettingsState extends State<AdminSettings> {
     _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
+    _newUserFirstNameController.dispose();
+    _newUserLastNameController.dispose();
+    _newUserEmailController.dispose();
+    _newUserPasswordController.dispose();
     super.dispose();
   }
 
@@ -299,6 +316,101 @@ class _AdminSettingsState extends State<AdminSettings> {
     }
   }
 
+  Future<void> _createPrivilegedUser() async {
+    if (!_provisionFormKey.currentState!.validate()) return;
+    if (_isCreatingUser) return;
+
+    setState(() => _isCreatingUser = true);
+
+    final firstName = _newUserFirstNameController.text.trim();
+    final lastName = _newUserLastNameController.text.trim();
+    final fullName = [firstName, lastName]
+        .where((value) => value.isNotEmpty)
+        .join(' ');
+    final role = _provisionRole;
+    final program = role == 'dean' ? _provisionProgram : '';
+
+    try {
+      final response = await http.post(
+        ApiService.uri('admin_create_user.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'first_name': firstName,
+          'last_name': lastName,
+          'name': fullName,
+          'email': _newUserEmailController.text.trim(),
+          'password': _newUserPasswordController.text,
+          'role': role,
+          'program': program,
+        }),
+      );
+
+      final decoded = jsonDecode(response.body);
+      final data = decoded is Map<String, dynamic>
+          ? decoded
+          : <String, dynamic>{};
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200 && data['status'] == 'success') {
+        await ActivityService.logImportantFlow(
+          action: 'create_user',
+          title:
+              'Admin created a ${role == 'dean' ? 'Dean' : 'Admin'} account for $fullName',
+          type: 'User Management',
+          targetId: (data['user'] as Map?)?['id']?.toString() ?? '',
+          targetType: role,
+          description: role == 'dean'
+              ? 'Assigned program: $program'
+              : 'Privileged account created by admin.',
+          metadata: {
+            'program': program,
+            'created_role': role,
+            'email': _newUserEmailController.text.trim(),
+            'target_user_name': fullName,
+          },
+        );
+
+        if (!mounted) return;
+
+        _newUserFirstNameController.clear();
+        _newUserLastNameController.clear();
+        _newUserEmailController.clear();
+        _newUserPasswordController.clear();
+        setState(() {
+          _provisionRole = 'dean';
+          _provisionProgram = 'BSIT';
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              data['message']?.toString() ?? 'Privileged account created.',
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              data['message']?.toString() ?? 'Failed to create user.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error creating privileged account.')),
+      );
+      debugPrint('Admin create user error: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isCreatingUser = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final role = (_user['role'] ?? 'admin').toString();
@@ -498,6 +610,145 @@ class _AdminSettingsState extends State<AdminSettings> {
                 ],
               ),
             ),
+            const SizedBox(height: 24),
+            _buildSectionCard(
+              title: 'User Provisioning',
+              icon: Icons.admin_panel_settings_outlined,
+              child: Form(
+                key: _provisionFormKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Create admin or dean accounts without affecting alumni registration. Dean accounts must be assigned to one program.',
+                      style: TextStyle(color: Colors.grey.shade700, height: 1.5),
+                    ),
+                    const SizedBox(height: 20),
+                    isCompact
+                        ? Column(
+                            children: [
+                              _buildTextField(
+                                'First Name',
+                                controller: _newUserFirstNameController,
+                              ),
+                              const SizedBox(height: 16),
+                              _buildTextField(
+                                'Last Name',
+                                controller: _newUserLastNameController,
+                              ),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Expanded(
+                                child: _buildTextField(
+                                  'First Name',
+                                  controller: _newUserFirstNameController,
+                                ),
+                              ),
+                              const SizedBox(width: 24),
+                              Expanded(
+                                child: _buildTextField(
+                                  'Last Name',
+                                  controller: _newUserLastNameController,
+                                ),
+                              ),
+                            ],
+                          ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      'Email Address',
+                      controller: _newUserEmailController,
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        final email = (value ?? '').trim();
+                        if (email.isEmpty) return 'Required';
+                        final pattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+                        if (!pattern.hasMatch(email)) {
+                          return 'Enter a valid email';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      'Temporary Password',
+                      controller: _newUserPasswordController,
+                      isPassword: true,
+                      validator: (value) {
+                        if ((value ?? '').isEmpty) return 'Required';
+                        if ((value ?? '').length < 8) {
+                          return 'Minimum 8 characters';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    isCompact
+                        ? Column(
+                            children: [
+                              _buildDropdownField(
+                                label: 'Role',
+                                value: _provisionRole,
+                                items: const ['dean', 'admin'],
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  setState(() => _provisionRole = value);
+                                },
+                              ),
+                              if (_provisionRole == 'dean') ...[
+                                const SizedBox(height: 16),
+                                _buildDropdownField(
+                                  label: 'Assigned Program',
+                                  value: _provisionProgram,
+                                  items: const ['BSIT', 'BSSW'],
+                                  onChanged: (value) {
+                                    if (value == null) return;
+                                    setState(() => _provisionProgram = value);
+                                  },
+                                ),
+                              ],
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Expanded(
+                                child: _buildDropdownField(
+                                  label: 'Role',
+                                  value: _provisionRole,
+                                  items: const ['dean', 'admin'],
+                                  onChanged: (value) {
+                                    if (value == null) return;
+                                    setState(() => _provisionRole = value);
+                                  },
+                                ),
+                              ),
+                              if (_provisionRole == 'dean') ...[
+                                const SizedBox(width: 24),
+                                Expanded(
+                                  child: _buildDropdownField(
+                                    label: 'Assigned Program',
+                                    value: _provisionProgram,
+                                    items: const ['BSIT', 'BSSW'],
+                                    onChanged: (value) {
+                                      if (value == null) return;
+                                      setState(() => _provisionProgram = value);
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                    const SizedBox(height: 24),
+                    _buildSolidButton(
+                      _isCreatingUser ? 'Creating...' : 'Create Account',
+                      Icons.person_add_alt_1_outlined,
+                      _isCreatingUser ? null : _createPrivilegedUser,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -695,6 +946,49 @@ class _AdminSettingsState extends State<AdminSettings> {
               vertical: 14,
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdownField({
+    required String label,
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          initialValue: value,
+          items: items
+              .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+              .toList(),
+          onChanged: onChanged,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: fieldFillColor,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+          ),
+          validator: (selected) {
+            if ((selected ?? '').trim().isEmpty) {
+              return 'Required';
+            }
+            return null;
+          },
         ),
       ],
     );

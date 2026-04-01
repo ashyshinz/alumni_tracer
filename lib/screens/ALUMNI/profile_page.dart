@@ -1,5 +1,8 @@
 import 'dart:convert';
+import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -41,10 +44,18 @@ class _ProfilePageState extends State<ProfilePage> {
   late final TextEditingController _addressController;
   late final TextEditingController _alumniNumController;
   late final TextEditingController _majorController;
+  late final TextEditingController _certificationsController;
+  late final TextEditingController _linkedinUrlController;
+  late final TextEditingController _facebookUrlController;
+  late final TextEditingController _portfolioUrlController;
 
   late String _selectedCivilStatus;
   late String _selectedGradYear;
   late String _selectedDegree;
+  String _currentResumeFileName = '';
+  String _currentResumePath = '';
+  String? _selectedResumeFileName;
+  Uint8List? _selectedResumeBytes;
 
   List<String> get _yearOptions =>
       List.generate(35, (index) => (DateTime.now().year - index).toString());
@@ -90,6 +101,23 @@ class _ProfilePageState extends State<ProfilePage> {
           ? _readValue(user, ['major', 'program']).trim()
           : _selectedDegree,
     );
+    _certificationsController = TextEditingController(
+      text: _readValue(user, ['certifications']).trim(),
+    );
+    _linkedinUrlController = TextEditingController(
+      text: _readValue(user, ['linkedinUrl', 'linkedin_url']).trim(),
+    );
+    _facebookUrlController = TextEditingController(
+      text: _readValue(user, ['facebookUrl', 'facebook_url']).trim(),
+    );
+    _portfolioUrlController = TextEditingController(
+      text: _readValue(user, ['portfolioUrl', 'portfolio_url']).trim(),
+    );
+    _currentResumeFileName = _readValue(user, [
+      'resumeFilename',
+      'resume_filename',
+    ]).trim();
+    _currentResumePath = _readValue(user, ['resumePath', 'resume_path']).trim();
 
     final civilStatus = _readCivilStatus(user);
     _selectedCivilStatus = _civilStatuses.contains(civilStatus)
@@ -116,6 +144,10 @@ class _ProfilePageState extends State<ProfilePage> {
       _addressController,
       _alumniNumController,
       _majorController,
+      _certificationsController,
+      _linkedinUrlController,
+      _facebookUrlController,
+      _portfolioUrlController,
     ]) {
       controller.dispose();
     }
@@ -169,6 +201,46 @@ class _ProfilePageState extends State<ProfilePage> {
     ];
 
     return requiredValues.every((value) => value.isNotEmpty);
+  }
+
+  Future<void> _pickResumeFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'doc', 'docx'],
+      withData: true,
+      withReadStream: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+
+    final file = result.files.single;
+    Uint8List? fileBytes = file.bytes;
+
+    if ((fileBytes == null || fileBytes.isEmpty) && file.readStream != null) {
+      final collected = <int>[];
+      await for (final chunk in file.readStream!) {
+        collected.addAll(chunk);
+      }
+      if (collected.isNotEmpty) {
+        fileBytes = Uint8List.fromList(collected);
+      }
+    }
+
+    if (fileBytes == null || fileBytes.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Unable to read the selected resume/CV. Try another file or run flutter pub get first.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _selectedResumeBytes = fileBytes;
+      _selectedResumeFileName = file.name;
+    });
   }
 
   @override
@@ -482,26 +554,57 @@ class _ProfilePageState extends State<ProfilePage> {
                           ],
                         ),
                       const SizedBox(height: 20),
-                      _buildDropdownField(
-                        label: "Degree",
-                        value: _selectedDegree,
-                        items: _degrees,
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() {
-                              _selectedDegree = value;
-                              _majorController.text = value;
-                            });
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 20),
                       _buildField(
-                        "Major/Program",
+                        "Registered Degree / Program",
                         _majorController,
                         enabled: false,
                         helperText:
-                            "This follows the registered degree/program for your account.",
+                            "This is assigned automatically from your approved registration and cannot be edited here.",
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  _buildProfileSection(
+                    title: "Career Documents",
+                    icon: Icons.work_outline,
+                    children: [
+                      _buildResumeUploadCard(),
+                      const SizedBox(height: 20),
+                      _buildField(
+                        "Certifications",
+                        _certificationsController,
+                        icon: Icons.workspace_premium_outlined,
+                        helperText:
+                            "List certifications, licenses, or short credentials separated by commas or new lines.",
+                        maxLines: 4,
+                        required: false,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  _buildProfileSection(
+                    title: "Professional Links",
+                    icon: Icons.link_outlined,
+                    children: [
+                      _buildField(
+                        "LinkedIn URL",
+                        _linkedinUrlController,
+                        icon: Icons.business_center_outlined,
+                        required: false,
+                      ),
+                      const SizedBox(height: 20),
+                      _buildField(
+                        "Facebook URL",
+                        _facebookUrlController,
+                        icon: Icons.facebook_outlined,
+                        required: false,
+                      ),
+                      const SizedBox(height: 20),
+                      _buildField(
+                        "Portfolio / Website URL",
+                        _portfolioUrlController,
+                        icon: Icons.public_outlined,
+                        required: false,
                       ),
                     ],
                   ),
@@ -598,6 +701,17 @@ class _ProfilePageState extends State<ProfilePage> {
       'degree': degree,
       'major': major,
       'program': degree,
+      'certifications': _certificationsController.text.trim(),
+      'linkedinUrl': _linkedinUrlController.text.trim(),
+      'linkedin_url': _linkedinUrlController.text.trim(),
+      'facebookUrl': _facebookUrlController.text.trim(),
+      'facebook_url': _facebookUrlController.text.trim(),
+      'portfolioUrl': _portfolioUrlController.text.trim(),
+      'portfolio_url': _portfolioUrlController.text.trim(),
+      'resumeFilename': _selectedResumeFileName ?? _currentResumeFileName,
+      'resume_filename': _selectedResumeFileName ?? _currentResumeFileName,
+      'resumePath': _currentResumePath,
+      'resume_path': _currentResumePath,
     };
 
     UserStore.patch(localPatch);
@@ -609,12 +723,18 @@ class _ProfilePageState extends State<ProfilePage> {
       if (userId > 0) {
         final response = await http.post(
           ApiService.uri('update_profile.php'),
-          headers: {"Content-Type": "application/json"},
+          headers: ApiService.jsonHeaders(),
           body: jsonEncode({
             "userId": userId,
             ...localPatch,
             // Backend currently expects `status` for civil status.
             "status": civilStatus,
+            if (_selectedResumeBytes != null &&
+                (_selectedResumeFileName ?? '').isNotEmpty)
+              "resume_base64": base64Encode(_selectedResumeBytes!),
+            if (_selectedResumeBytes != null &&
+                (_selectedResumeFileName ?? '').isNotEmpty)
+              "resume_file_name": _selectedResumeFileName,
           }),
         );
 
@@ -626,6 +746,21 @@ class _ProfilePageState extends State<ProfilePage> {
               UserStore.patch(
                 Map<String, dynamic>.from(decoded['user'] as Map),
               );
+              final updatedUser = Map<String, dynamic>.from(
+                decoded['user'] as Map,
+              );
+              _currentResumeFileName =
+                  (updatedUser['resume_filename'] ??
+                          updatedUser['resumeFilename'] ??
+                          '')
+                      .toString();
+              _currentResumePath =
+                  (updatedUser['resume_path'] ??
+                          updatedUser['resumePath'] ??
+                          '')
+                      .toString();
+              _selectedResumeBytes = null;
+              _selectedResumeFileName = null;
               await ActivityService.logImportantFlow(
                 action: 'profile_update',
                 title:
@@ -639,6 +774,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   'program': degree,
                   'graduation_year': gradYear,
                   'civil_status': civilStatus,
+                  'resume_filename': _currentResumeFileName,
                 },
               );
             } else if (status != null && status != 'success') {
@@ -723,6 +859,8 @@ class _ProfilePageState extends State<ProfilePage> {
     IconData? icon,
     bool enabled = true,
     String? helperText,
+    int maxLines = 1,
+    bool required = true,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -754,6 +892,7 @@ class _ProfilePageState extends State<ProfilePage> {
         _isEditing && enabled
             ? TextFormField(
                 controller: controller,
+                maxLines: maxLines,
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: Colors.white,
@@ -771,7 +910,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 validator: (value) {
-                  if ((value ?? '').trim().isEmpty) {
+                  if (required && (value ?? '').trim().isEmpty) {
                     return "Required";
                   }
                   return null;
@@ -863,6 +1002,80 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
       ],
+    );
+  }
+
+  Widget _buildResumeUploadCard() {
+    final fileLabel =
+        _selectedResumeFileName ??
+        (_currentResumeFileName.isNotEmpty ? _currentResumeFileName : 'No resume/CV uploaded yet');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: lightBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Resume / CV',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Upload a PDF, DOC, or DOCX file so your profile is ready for future industry-sharing features.',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            fileLabel,
+            style: TextStyle(
+              fontSize: 13,
+              color: fileLabel == 'No resume/CV uploaded yet'
+                  ? Colors.grey.shade700
+                  : Colors.black87,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          if (_isEditing) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _pickResumeFile,
+                  icon: const Icon(Icons.upload_file_outlined, size: 18),
+                  label: Text(
+                    _selectedResumeFileName == null
+                        ? 'Upload Resume/CV'
+                        : 'Replace Resume/CV',
+                  ),
+                ),
+                if (_selectedResumeFileName != null)
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _selectedResumeFileName = null;
+                        _selectedResumeBytes = null;
+                      });
+                    },
+                    child: const Text('Clear Selection'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Pick the file first, then click Save Changes to upload it.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
