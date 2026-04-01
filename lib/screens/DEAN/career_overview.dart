@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/filter_options_service.dart';
 import '../../state/user_store.dart';
 import 'dean_analytics_data.dart';
 
@@ -20,6 +21,7 @@ class _CareerOverviewPageState extends State<CareerOverviewPage> {
   late final String? _assignedProgram;
   String _selectedProgram = 'All';
   bool _isLoading = true;
+  List<String> _programOptions = const ['All'];
 
   Map<String, dynamic> _summary = {
     'total_alumni': 0,
@@ -37,6 +39,10 @@ class _CareerOverviewPageState extends State<CareerOverviewPage> {
     super.initState();
     _assignedProgram = _normalizeProgram(UserStore.value?['program']);
     _selectedProgram = _assignedProgram ?? 'All';
+    _programOptions = _assignedProgram == null
+        ? const ['All']
+        : [_assignedProgram];
+    _loadFilterOptions();
     _fetchOverview();
   }
 
@@ -48,9 +54,22 @@ class _CareerOverviewPageState extends State<CareerOverviewPage> {
     return null;
   }
 
-  List<String> get _programOptions => _assignedProgram == null
-      ? const ['All', 'BSIT', 'BSSW']
-      : [_assignedProgram!];
+  Future<void> _loadFilterOptions() async {
+    if (_assignedProgram != null) return;
+
+    try {
+      final options = await FilterOptionsService.fetch();
+      if (!mounted) return;
+      setState(() {
+        _programOptions = ['All', ...options.programs];
+        if (!_programOptions.contains(_selectedProgram)) {
+          _selectedProgram = _programOptions.first;
+        }
+      });
+    } catch (_) {
+      // Preserve the fallback list when backend options are unavailable.
+    }
+  }
 
   Future<void> _fetchOverview() async {
     if (mounted) {

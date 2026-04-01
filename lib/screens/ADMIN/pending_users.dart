@@ -20,6 +20,7 @@ class _PendingUsersPageState extends State<PendingUsersPage> {
   // ✅ Live Data States
   List<dynamic> pendingUsers = [];
   bool isLoading = true;
+  final Set<String> _selectedUserIds = <String>{};
 
   @override
   void initState() {
@@ -36,6 +37,9 @@ class _PendingUsersPageState extends State<PendingUsersPage> {
       if (response.statusCode == 200) {
         setState(() {
           pendingUsers = json.decode(response.body);
+          _selectedUserIds.removeWhere(
+            (id) => !pendingUsers.any((user) => user['id'].toString() == id),
+          );
           isLoading = false;
         });
       }
@@ -63,10 +67,15 @@ class _PendingUsersPageState extends State<PendingUsersPage> {
             title:
                 'Admin ${isApprove ? 'approved' : 'rejected'} the registration of $name',
             type: 'Verification',
-            userId: int.tryParse(id),
-            userName: name,
-            role: 'admin',
-            metadata: {'status': action},
+            targetId: id,
+            targetType: 'alumni_registration',
+            description:
+                'Registration for $name was ${isApprove ? 'approved' : 'rejected'}.',
+            metadata: {
+              'status': action,
+              'target_user_id': id,
+              'target_user_name': name,
+            },
           );
           fetchPendingUsers(); // Refresh list
           _showSnackBar(
@@ -78,6 +87,87 @@ class _PendingUsersPageState extends State<PendingUsersPage> {
     } catch (e) {
       debugPrint("Action Error: $e");
     }
+  }
+
+  Future<void> _handleBulkAction(bool isApprove) async {
+    if (_selectedUserIds.isEmpty) return;
+
+    final action = isApprove ? 'approved' : 'rejected';
+    final selectedUsers = pendingUsers
+        .where((user) => _selectedUserIds.contains(user['id'].toString()))
+        .map((user) => Map<String, dynamic>.from(user))
+        .toList();
+
+    try {
+      final response = await http.post(
+        ApiService.uri('approve_user.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'ids': _selectedUserIds.map(int.parse).toList(),
+          'action': action,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final result = json.decode(response.body);
+        if (result['success'] == true) {
+          for (final user in selectedUsers) {
+            final id = user['id']?.toString() ?? '';
+            final name = user['name']?.toString() ?? 'Unknown User';
+            await ActivityService.logImportantFlow(
+              action: isApprove ? 'approve_user' : 'reject_user',
+              title:
+                  'Admin ${isApprove ? 'approved' : 'rejected'} the registration of $name',
+              type: 'Verification',
+              targetId: id,
+              targetType: 'alumni_registration',
+              description:
+                  'Registration for $name was ${isApprove ? 'approved' : 'rejected'} through bulk action.',
+              metadata: {
+                'status': action,
+                'target_user_id': id,
+                'target_user_name': name,
+                'bulk_action': true,
+              },
+            );
+          }
+
+          setState(() => _selectedUserIds.clear());
+          fetchPendingUsers();
+          _showSnackBar(
+            result['message']?.toString() ??
+                (isApprove
+                    ? 'Selected users approved.'
+                    : 'Selected users rejected.'),
+            isApprove,
+          );
+        } else {
+          _showSnackBar(
+            result['message']?.toString() ?? 'Bulk action failed.',
+            false,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Bulk Action Error: $e");
+      _showSnackBar('Bulk action failed.', false);
+    }
+  }
+
+  void _toggleAllSelections(bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedUserIds
+          ..clear()
+          ..addAll(
+            pendingUsers
+                .map((user) => user['id']?.toString() ?? '')
+                .where((id) => id.isNotEmpty),
+          );
+      } else {
+        _selectedUserIds.clear();
+      }
+    });
   }
 
   void _showSnackBar(String message, bool isSuccess) {
@@ -396,6 +486,15 @@ class _PendingUsersPageState extends State<PendingUsersPage> {
   }
 
   Widget _buildTableContainer() {
+    final selectableIds = pendingUsers
+        .map((user) => user['id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList();
+    final hasSelection = _selectedUserIds.isNotEmpty;
+    final areAllSelected =
+        selectableIds.isNotEmpty &&
+        _selectedUserIds.length == selectableIds.length;
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -413,11 +512,54 @@ class _PendingUsersPageState extends State<PendingUsersPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: Text(
-              "Pending Users List",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              alignment: WrapAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Pending Users List",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: hasSelection
+                          ? () => _handleBulkAction(false)
+                          : null,
+                      icon: const Icon(Icons.close_rounded),
+                      label: Text(
+                        hasSelection
+                            ? 'Reject (${_selectedUserIds.length})'
+                            : 'Reject Selected',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: hasSelection
+                          ? () => _handleBulkAction(true)
+                          : null,
+                      icon: const Icon(Icons.done_rounded),
+                      label: Text(
+                        hasSelection
+                            ? 'Approve (${_selectedUserIds.length})'
+                            : 'Approve Selected',
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0D0D1D),
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           if (pendingUsers.isEmpty)
@@ -437,7 +579,15 @@ class _PendingUsersPageState extends State<PendingUsersPage> {
                         const Color(0xFFFAFAFA),
                       ),
                       columnSpacing: 24,
-                      columns: const [
+                      columns: [
+                        DataColumn(
+                          label: Checkbox(
+                            value: areAllSelected,
+                            tristate: hasSelection && !areAllSelected,
+                            onChanged: (value) =>
+                                _toggleAllSelections(value ?? false),
+                          ),
+                        ),
                         DataColumn(label: Text("Name")),
                         DataColumn(label: Text("Email")),
                         DataColumn(label: Text("Program")),
@@ -447,7 +597,27 @@ class _PendingUsersPageState extends State<PendingUsersPage> {
                       rows: pendingUsers
                           .map(
                             (user) => DataRow(
+                              selected: _selectedUserIds.contains(
+                                user['id'].toString(),
+                              ),
                               cells: [
+                                DataCell(
+                                  Checkbox(
+                                    value: _selectedUserIds.contains(
+                                      user['id'].toString(),
+                                    ),
+                                    onChanged: (value) {
+                                      final id = user['id'].toString();
+                                      setState(() {
+                                        if (value == true) {
+                                          _selectedUserIds.add(id);
+                                        } else {
+                                          _selectedUserIds.remove(id);
+                                        }
+                                      });
+                                    },
+                                  ),
+                                ),
                                 DataCell(
                                   SizedBox(
                                     width: 180,

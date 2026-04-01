@@ -40,12 +40,7 @@ class _AdminUserHistoryDialogState extends State<AdminUserHistoryDialog> {
 
     try {
       final responses = await Future.wait([
-        http.get(
-          ApiService.uri(
-            'get_full_activity.php',
-            queryParameters: {'role': 'admin'},
-          ),
-        ),
+        http.get(ApiService.uri('get_full_activity.php')),
         http.get(ApiService.uri('get_tracer_submissions.php')),
       ]);
 

@@ -8,6 +8,9 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../../services/api_service.dart';
+import '../../services/csv_export_service.dart';
+import '../../services/filter_options_service.dart';
+import '../../state/user_store.dart';
 
 class DepartmentAlumniPage extends StatefulWidget {
   const DepartmentAlumniPage({super.key});
@@ -23,8 +26,12 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
   final Color borderColor = const Color(0xFFE5E7EB);
 
   String selectedProgram = "BSIT";
-  String selectedBatch = "2022";
+  String selectedBatch = "All Batches";
   String selectedStatus = "All Status";
+  String? _assignedProgram;
+  List<String> _programOptions = const ['BSIT', 'BSSW'];
+  List<String> _batchOptions = const ['All Batches'];
+  List<String> _statusOptions = const ['All Status'];
 
   List<dynamic> _filteredAlumni = [];
   Map<String, dynamic> _summary = {
@@ -40,11 +47,50 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
   @override
   void initState() {
     super.initState();
+    _assignedProgram = _normalizeProgram(UserStore.value?['program']);
+    selectedProgram = _assignedProgram ?? selectedProgram;
+    _programOptions = _assignedProgram == null
+        ? const ['BSIT', 'BSSW']
+        : [_assignedProgram!];
+    _loadFilterOptions();
     _fetchAlumniData();
     _autoRefreshTimer = Timer.periodic(
       const Duration(seconds: 20),
       (_) => _fetchAlumniData(showLoader: false),
     );
+  }
+
+  String? _normalizeProgram(dynamic value) {
+    final normalized = value?.toString().trim().toUpperCase() ?? '';
+    if (normalized == 'BSIT' || normalized == 'BSSW') {
+      return normalized;
+    }
+    return null;
+  }
+
+  Future<void> _loadFilterOptions() async {
+    try {
+      final options = await FilterOptionsService.fetch(program: selectedProgram);
+      if (!mounted) return;
+      setState(() {
+        _programOptions = _assignedProgram == null
+            ? (options.programs.isEmpty ? const ['BSIT', 'BSSW'] : options.programs)
+            : [_assignedProgram!];
+        _batchOptions = ['All Batches', ...options.years];
+        _statusOptions = ['All Status', ...options.statuses];
+        if (!_programOptions.contains(selectedProgram)) {
+          selectedProgram = _programOptions.first;
+        }
+        if (!_batchOptions.contains(selectedBatch)) {
+          selectedBatch = _batchOptions.first;
+        }
+        if (!_statusOptions.contains(selectedStatus)) {
+          selectedStatus = _statusOptions.first;
+        }
+      });
+    } catch (_) {
+      // Preserve the current fallback values if backend options are unavailable.
+    }
   }
 
   Future<void> _fetchAlumniData({bool showLoader = true}) async {
@@ -55,10 +101,11 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
           'get_department_alumni.php',
           queryParameters: {
             'program': selectedProgram,
-            'batch': selectedBatch,
+            'batch': selectedBatch == 'All Batches' ? '' : selectedBatch,
             'status': selectedStatus,
           },
         ),
+        headers: ApiService.authHeaders(),
       );
 
       if (response.statusCode == 200) {
@@ -83,6 +130,33 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
   void dispose() {
     _autoRefreshTimer?.cancel();
     super.dispose();
+  }
+
+  List<List<String>> _buildDepartmentExportRows() {
+    final summaryRows = [
+      ['Generated On', _formatReportDate(DateTime.now()), '', '', ''],
+      ['Program Filter', selectedProgram, '', '', ''],
+      ['Batch Filter', selectedBatch, '', '', ''],
+      ['Status Filter', selectedStatus, '', '', ''],
+      ['Total Graduates', '${_summary['total_graduates'] ?? 0}', '', '', ''],
+      ['Employment Rate', '${_summary['employment_rate'] ?? '0%'}', '', '', ''],
+      ['Job Alignment', '${_summary['job_alignment'] ?? '0%'}', '', '', ''],
+      ['', '', '', '', ''],
+    ];
+
+    final dataRows = _filteredAlumni
+        .map(
+          (alumni) => [
+            (alumni['name'] ?? 'N/A').toString(),
+            (alumni['year'] ?? 'N/A').toString(),
+            (alumni['status'] ?? 'N/A').toString(),
+            (alumni['company'] ?? 'N/A').toString(),
+            alumni['alignment'] == true ? 'Aligned' : 'Review Needed',
+          ],
+        )
+        .toList();
+
+    return [...summaryRows, ...dataRows];
   }
 
   Future<void> _downloadAccreditationReport() async {
@@ -169,6 +243,26 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
                     'Job Alignment',
                     '${_summary['job_alignment'] ?? '0%'}',
                   ]),
+                ],
+              ),
+              pw.SizedBox(height: 18),
+              pw.Text(
+                'Current Export Scope',
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 16,
+                  color: PdfColor.fromHex('#4A152C'),
+                ),
+              ),
+              pw.SizedBox(height: 10),
+              pw.Table(
+                border: pw.TableBorder.all(color: PdfColor.fromHex('#D7D7D7')),
+                children: [
+                  _pdfRow(['Filter', 'Value'], isHeader: true),
+                  _pdfRow(['Program', selectedProgram]),
+                  _pdfRow(['Batch', selectedBatch]),
+                  _pdfRow(['Status', selectedStatus]),
+                  _pdfRow(['Included Records', '${_filteredAlumni.length}']),
                 ],
               ),
               pw.SizedBox(height: 18),
@@ -330,6 +424,32 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
+  Future<void> _exportCsv() async {
+    try {
+      final path = await CsvExportService.exportRows(
+        filename:
+            'department_alumni_${DateTime.now().millisecondsSinceEpoch}.csv',
+        headers: const ['Name', 'Year', 'Status', 'Company', 'Alignment'],
+        rows: _buildDepartmentExportRows(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('CSV exported: $path'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to export CSV.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -415,26 +535,47 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
                           const SizedBox(height: 16),
                           SizedBox(
                             width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: _isLoading || _isExportingReport
-                                  ? null
-                                  : _downloadAccreditationReport,
-                              icon: const Icon(Icons.picture_as_pdf, size: 18),
-                              label: Text(
-                                _isExportingReport
-                                    ? "Preparing Report..."
-                                    : "Export Accreditation Report",
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white,
-                                minimumSize: const Size(0, 52),
-                                side: BorderSide(
-                                  color: Colors.white.withValues(alpha: 0.30),
+                            child: Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: _isLoading || _isExportingReport
+                                      ? null
+                                      : _downloadAccreditationReport,
+                                  icon: const Icon(Icons.picture_as_pdf, size: 18),
+                                  label: Text(
+                                    _isExportingReport
+                                        ? "Preparing Report..."
+                                        : "Export Accreditation Report",
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size(0, 52),
+                                    side: BorderSide(
+                                      color: Colors.white.withValues(alpha: 0.30),
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
                                 ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                OutlinedButton.icon(
+                                  onPressed: _filteredAlumni.isEmpty ? null : _exportCsv,
+                                  icon: const Icon(Icons.table_view_outlined, size: 18),
+                                  label: const Text("Export CSV"),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size(0, 52),
+                                    side: BorderSide(
+                                      color: Colors.white.withValues(alpha: 0.30),
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
                           ),
                         ],
@@ -485,26 +626,47 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
                             ),
                           ),
                           const SizedBox(width: 16),
-                          OutlinedButton.icon(
-                            onPressed: _isLoading || _isExportingReport
-                                ? null
-                                : _downloadAccreditationReport,
-                            icon: const Icon(Icons.picture_as_pdf, size: 18),
-                            label: Text(
-                              _isExportingReport
-                                  ? "Preparing Report..."
-                                  : "Export Accreditation Report",
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size(0, 52),
-                              side: BorderSide(
-                                color: Colors.white.withValues(alpha: 0.30),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: _isLoading || _isExportingReport
+                                    ? null
+                                    : _downloadAccreditationReport,
+                                icon: const Icon(Icons.picture_as_pdf, size: 18),
+                                label: Text(
+                                  _isExportingReport
+                                      ? "Preparing Report..."
+                                      : "Export Accreditation Report",
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  minimumSize: const Size(0, 52),
+                                  side: BorderSide(
+                                    color: Colors.white.withValues(alpha: 0.30),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                              OutlinedButton.icon(
+                                onPressed: _filteredAlumni.isEmpty ? null : _exportCsv,
+                                icon: const Icon(Icons.table_view_outlined, size: 18),
+                                label: const Text("Export CSV"),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  minimumSize: const Size(0, 52),
+                                  side: BorderSide(
+                                    color: Colors.white.withValues(alpha: 0.30),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
@@ -691,22 +853,30 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
         runSpacing: 12,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          _buildDropdownFilter("Program", selectedProgram, [
-            "BSIT",
-            "BSCS",
-            "BSHM",
-          ], (v) => setState(() => selectedProgram = v!)),
-          _buildDropdownFilter("Batch", selectedBatch, [
-            "2021",
-            "2022",
-            "2023",
-          ], (v) => setState(() => selectedBatch = v!)),
-          _buildDropdownFilter("Status", selectedStatus, [
-            "All Status",
-            "Employed",
-            "Unemployed",
-            "Further Studies",
-          ], (v) => setState(() => selectedStatus = v!)),
+          if (_assignedProgram == null)
+            _buildDropdownFilter("Program", selectedProgram, _programOptions, (
+              v,
+            ) {
+              setState(() {
+                selectedProgram = v!;
+                selectedBatch = 'All Batches';
+              });
+              _loadFilterOptions();
+            })
+          else
+            _buildLockedProgramFilter(),
+          _buildDropdownFilter(
+            "Batch",
+            selectedBatch,
+            _batchOptions,
+            (v) => setState(() => selectedBatch = v!),
+          ),
+          _buildDropdownFilter(
+            "Status",
+            selectedStatus,
+            _statusOptions,
+            (v) => setState(() => selectedStatus = v!),
+          ),
           if (isCompact)
             SizedBox(
               width: double.infinity,
@@ -829,13 +999,49 @@ class _DepartmentAlumniPageState extends State<DepartmentAlumniPage> {
             border: Border.all(color: borderColor),
           ),
           child: DropdownButton<String>(
-            value: value,
+            value: items.contains(value) ? value : items.first,
             underline: const SizedBox(),
             isDense: true,
             items: items
                 .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                 .toList(),
             onChanged: onChanged,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLockedProgramFilter() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Program',
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: bgLight,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.lock_outline, color: accentGold, size: 18),
+              const SizedBox(width: 10),
+              Text(
+                _assignedProgram ?? selectedProgram,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ],
           ),
         ),
       ],
