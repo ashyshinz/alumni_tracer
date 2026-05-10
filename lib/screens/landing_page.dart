@@ -295,7 +295,7 @@ class _LandingPageState extends State<LandingPage>
               ),
               const SizedBox(width: 12),
               const Text(
-                "JMC ALUMNI CONNECT",
+                "JMCFI ALUMNI HUB",
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
@@ -401,9 +401,31 @@ class _LandingPageState extends State<LandingPage>
 
   // ================= HERO SECTION =================
   Widget _buildHeroSection() {
+    final screenSize = MediaQuery.of(context).size;
+    final isCompactWidth = screenSize.width < 900;
+    final isVeryCompactWidth = screenSize.width < 640;
+    final isPhoneWidth = screenSize.width < 430;
+    final isShortHeight = screenSize.height < 760;
+    final horizontalPadding = isVeryCompactWidth ? 20.0 : 40.0;
+    final titleFontSize = isVeryCompactWidth
+        ? 34.0
+        : isCompactWidth
+        ? 44.0
+        : 56.0;
+    final subtitleFontSize = isVeryCompactWidth
+        ? 16.0
+        : isCompactWidth
+        ? 18.0
+        : 20.0;
+    final titleGap = isShortHeight ? 20.0 : 32.0;
+    final subtitleGap = isShortHeight ? 16.0 : 24.0;
+    final ctaGap = isShortHeight ? 32.0 : 48.0;
+    final statsGap = isShortHeight ? 40.0 : 80.0;
+    final heroTopSpacing = isVeryCompactWidth ? 118.0 : 132.0;
+
     return Container(
       key: _homeKey,
-      height: MediaQuery.of(context).size.height,
+      constraints: BoxConstraints(minHeight: screenSize.height),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -473,7 +495,12 @@ class _LandingPageState extends State<LandingPage>
                 position: _heroSlideAnimation,
                 child: Container(
                   constraints: const BoxConstraints(maxWidth: 1200),
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    heroTopSpacing,
+                    horizontalPadding,
+                    24,
+                  ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -494,10 +521,18 @@ class _LandingPageState extends State<LandingPage>
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              Icons.workspace_premium,
-                              color: accentGold,
-                              size: 20,
+                            Image.asset(
+                              'assets/jmclogo.png',
+                              height: 20,
+                              width: 20,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Icon(
+                                  Icons.workspace_premium,
+                                  color: accentGold,
+                                  size: 20,
+                                );
+                              },
                             ),
                             const SizedBox(width: 8),
                             Text(
@@ -513,31 +548,31 @@ class _LandingPageState extends State<LandingPage>
                         ),
                       ),
 
-                      const SizedBox(height: 32),
+                      SizedBox(height: titleGap),
 
                       // Main Title
-                      const Text(
-                        "ALUMNI TRACER STUDY",
+                      Text(
+                        "ALUMNI CONNECT",
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 56,
+                          fontSize: titleFontSize,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 2,
+                          letterSpacing: isVeryCompactWidth ? 1 : 2,
                           height: 1.1,
                         ),
                         textAlign: TextAlign.center,
                       ),
 
-                      const SizedBox(height: 24),
+                      SizedBox(height: subtitleGap),
 
                       // Subtitle
                       Container(
                         constraints: const BoxConstraints(maxWidth: 600),
-                        child: const Text(
+                        child: Text(
                           "Bridging the gap between education and career success. Track graduate outcomes, build lasting connections, and shape the future of our alumni community.",
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 20,
+                            fontSize: subtitleFontSize,
                             height: 1.6,
                             fontWeight: FontWeight.w300,
                           ),
@@ -545,79 +580,96 @@ class _LandingPageState extends State<LandingPage>
                         ),
                       ),
 
-                      const SizedBox(height: 48),
+                      SizedBox(height: ctaGap),
 
                       // CTA Buttons
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 16,
+                        runSpacing: 16,
                         children: [
                           // Primary CTA
-                          ElevatedButton.icon(
-                            onPressed: () => _scrollToSection(_featuresKey),
-                            icon: const Icon(Icons.explore, size: 20),
-                            label: const Text(
-                              "EXPLORE FEATURES",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1,
+                          SizedBox(
+                            width: isPhoneWidth ? double.infinity : null,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _scrollToSection(_featuresKey),
+                              icon: const Icon(Icons.explore, size: 20),
+                              label: const Text(
+                                "EXPLORE FEATURES",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1,
+                                ),
                               ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: accentGold,
-                              foregroundColor: primaryMaroon,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 32,
-                                vertical: 20,
-                              ),
-                              elevation: 8,
-                              shadowColor: accentGold.withValues(alpha: 0.3),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: accentGold,
+                                foregroundColor: primaryMaroon,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isPhoneWidth ? 20 : 32,
+                                  vertical: 20,
+                                ),
+                                minimumSize: Size(
+                                  isPhoneWidth ? screenSize.width : 0,
+                                  56,
+                                ),
+                                elevation: 8,
+                                shadowColor: accentGold.withValues(alpha: 0.3),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
                               ),
                             ),
                           ),
 
-                          const SizedBox(width: 24),
-
                           // Secondary CTA
-                          OutlinedButton.icon(
-                            onPressed: () =>
-                                _scrollToSection(_announcementsKey),
-                            icon: const Icon(Icons.announcement, size: 20),
-                            label: const Text(
-                              "VIEW UPDATES",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1,
+                          SizedBox(
+                            width: isPhoneWidth ? double.infinity : null,
+                            child: OutlinedButton.icon(
+                              onPressed: () =>
+                                  _scrollToSection(_announcementsKey),
+                              icon: const Icon(Icons.announcement, size: 20),
+                              label: const Text(
+                                "VIEW UPDATES",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1,
+                                ),
                               ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              side: const BorderSide(
-                                color: Colors.white,
-                                width: 2,
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 32,
-                                vertical: 20,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                side: const BorderSide(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isPhoneWidth ? 20 : 32,
+                                  vertical: 20,
+                                ),
+                                minimumSize: Size(
+                                  isPhoneWidth ? screenSize.width : 0,
+                                  56,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
                               ),
                             ),
                           ),
                         ],
                       ),
 
-                      const SizedBox(height: 80),
+                      SizedBox(height: statsGap),
 
                       // Stats Row
                       Container(
                         constraints: const BoxConstraints(maxWidth: 800),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        child: Wrap(
+                          alignment: WrapAlignment.spaceEvenly,
+                          spacing: isPhoneWidth ? 18 : 24,
+                          runSpacing: 18,
                           children: [
                             _buildStatItem("New", "Alumni Platform"),
                             _buildStatItem("Jobs", "Opportunity Board"),
@@ -668,26 +720,29 @@ class _LandingPageState extends State<LandingPage>
   }
 
   Widget _buildStatItem(String value, String label) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
+    return SizedBox(
+      width: 120,
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.8),
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1729,56 +1784,89 @@ class _LandingPageState extends State<LandingPage>
               final isMobile = constraints.maxWidth < 800;
               return Column(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: _buildAboutCard(
-                          icon: Icons.gps_fixed,
-                          title: "Our Vision",
-                          description:
-                              "To build a connected alumni community where graduates can access opportunities, stay informed, and remain engaged with the institution.",
-                          color: primaryMaroon,
+                  if (isMobile) ...[
+                    _buildAboutCard(
+                      icon: Icons.gps_fixed,
+                      title: "Our Vision",
+                      description:
+                          "To build a connected alumni community where graduates can access opportunities, stay informed, and remain engaged with the institution.",
+                      color: primaryMaroon,
+                    ),
+                    const SizedBox(height: 24),
+                    _buildAboutCard(
+                      icon: Icons.lightbulb,
+                      title: "Our Values",
+                      description:
+                          "We value service, transparency, collaboration, and accessibility in delivering support to alumni and strengthening school-industry connections.",
+                      color: accentGold,
+                    ),
+                    const SizedBox(height: 24),
+                    _buildAboutCard(
+                      icon: Icons.people,
+                      title: "Our Community",
+                      description:
+                          "This platform brings together alumni, the alumni office, academic departments, and partner organizations in one accessible online space.",
+                      color: secondaryMaroon,
+                    ),
+                    const SizedBox(height: 24),
+                    _buildAboutCard(
+                      icon: Icons.trending_up,
+                      title: "Our Purpose",
+                      description:
+                          "As a newly developed system, our purpose is to share opportunities, post announcements, support tracer studies, and build reliable alumni data over time.",
+                      color: Colors.green.shade600,
+                    ),
+                  ] else ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: _buildAboutCard(
+                            icon: Icons.gps_fixed,
+                            title: "Our Vision",
+                            description:
+                                "To build a connected alumni community where graduates can access opportunities, stay informed, and remain engaged with the institution.",
+                            color: primaryMaroon,
+                          ),
                         ),
-                      ),
-                      if (!isMobile) const SizedBox(width: 24),
-                      Expanded(
-                        child: _buildAboutCard(
-                          icon: Icons.lightbulb,
-                          title: "Our Values",
-                          description:
-                              "We value service, transparency, collaboration, and accessibility in delivering support to alumni and strengthening school-industry connections.",
-                          color: accentGold,
+                        const SizedBox(width: 24),
+                        Expanded(
+                          child: _buildAboutCard(
+                            icon: Icons.lightbulb,
+                            title: "Our Values",
+                            description:
+                                "We value service, transparency, collaboration, and accessibility in delivering support to alumni and strengthening school-industry connections.",
+                            color: accentGold,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  if (isMobile) const SizedBox(height: 24),
-                  if (!isMobile) const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: _buildAboutCard(
-                          icon: Icons.people,
-                          title: "Our Community",
-                          description:
-                              "This platform brings together alumni, the alumni office, academic departments, and partner organizations in one accessible online space.",
-                          color: secondaryMaroon,
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: _buildAboutCard(
+                            icon: Icons.people,
+                            title: "Our Community",
+                            description:
+                                "This platform brings together alumni, the alumni office, academic departments, and partner organizations in one accessible online space.",
+                            color: secondaryMaroon,
+                          ),
                         ),
-                      ),
-                      if (!isMobile) const SizedBox(width: 24),
-                      Expanded(
-                        child: _buildAboutCard(
-                          icon: Icons.trending_up,
-                          title: "Our Purpose",
-                          description:
-                              "As a newly developed system, our purpose is to share opportunities, post announcements, support tracer studies, and build reliable alumni data over time.",
-                          color: Colors.green.shade600,
+                        const SizedBox(width: 24),
+                        Expanded(
+                          child: _buildAboutCard(
+                            icon: Icons.trending_up,
+                            title: "Our Purpose",
+                            description:
+                                "As a newly developed system, our purpose is to share opportunities, post announcements, support tracer studies, and build reliable alumni data over time.",
+                            color: Colors.green.shade600,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                 ],
               );
             },
@@ -1877,6 +1965,7 @@ class _LandingPageState extends State<LandingPage>
       shadowColor: color.withValues(alpha: 0.1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
+        width: double.infinity,
         padding: const EdgeInsets.all(28),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
@@ -1984,27 +2073,26 @@ class _LandingPageState extends State<LandingPage>
                 _buildContactCard(
                   icon: Icons.mail_outline,
                   title: "General Inquiries",
-                  primary: "alumni.office@jmcalumni.edu",
+                  primary: "marla.villasor@jmc.edu.ph",
                   secondary:
-                      "Temporary email for alumni concerns and portal assistance",
+                      "Official email for alumni concerns and portal assistance",
                 ),
                 _buildContactCard(
                   icon: Icons.phone_outlined,
                   title: "Office Phone",
-                  primary: "(032) 123-4567",
-                  secondary: "Monday to Friday, 8:00 AM - 5:00 PM",
+                  primary: "1234",
+                  secondary: "Temporary display number during deployment",
                 ),
                 _buildContactCard(
                   icon: Icons.location_on_outlined,
                   title: "Campus Office",
-                  primary: "JMC Alumni Relations Office",
-                  secondary:
-                      "Temporary Address: 123 Alumni Avenue, Mandaue City",
+                  primary: "Jose Maria College Foundation, Inc. School",
+                  secondary: "Temporary display location for deployment",
                 ),
                 _buildContactCard(
                   icon: Icons.public_outlined,
                   title: "Facebook Page",
-                  primary: "facebook.com/jmcalumnioffice",
+                  primary: "Temporary Facebook page display",
                   secondary: "For announcements, office updates, and events",
                 ),
               ];
@@ -2114,92 +2202,14 @@ class _LandingPageState extends State<LandingPage>
   }
 
   Widget _buildFooter() => Container(
-    padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 40),
+    padding: const EdgeInsets.fromLTRB(40, 20, 40, 28),
     color: const Color(0xFF1A1A1A),
     width: double.infinity,
-    child: Column(
-      children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final isMobile = constraints.maxWidth < 800;
-            return Column(
-              children: [
-                if (isMobile)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      _buildFooterColumn(
-                        title: "QUICK LINKS",
-                        items: const [
-                          "Home",
-                          "Features",
-                          "Announcements",
-                          "Jobs",
-                        ],
-                      ),
-                      const SizedBox(height: 32),
-                      _buildFooterColumn(
-                        title: "INFORMATION",
-                        items: const [
-                          "About Us",
-                          "Contact",
-                          "Privacy",
-                          "Terms",
-                        ],
-                      ),
-                      const SizedBox(height: 32),
-                      _buildFooterColumn(
-                        title: "CONNECT",
-                        items: const [
-                          "Facebook",
-                          "Twitter",
-                          "LinkedIn",
-                          "Instagram",
-                        ],
-                      ),
-                    ],
-                  )
-                else
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildFooterColumn(
-                        title: "QUICK LINKS",
-                        items: const [
-                          "Home",
-                          "Features",
-                          "Announcements",
-                          "Jobs",
-                        ],
-                      ),
-                      _buildFooterColumn(
-                        title: "INFORMATION",
-                        items: const [
-                          "About Us",
-                          "Contact",
-                          "Privacy",
-                          "Terms",
-                        ],
-                      ),
-                      _buildFooterColumn(
-                        title: "CONNECT",
-                        items: const [
-                          "Facebook",
-                          "Twitter",
-                          "LinkedIn",
-                          "Instagram",
-                        ],
-                      ),
-                    ],
-                  ),
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: 48),
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 24),
+    child: Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: Container(
+          padding: const EdgeInsets.only(top: 18),
           decoration: BoxDecoration(
             border: Border(
               top: BorderSide(
@@ -2231,211 +2241,245 @@ class _LandingPageState extends State<LandingPage>
             ],
           ),
         ),
-      ],
+      ),
     ),
   );
 
-  Widget _buildFooterColumn({
-    required String title,
-    required List<String> items,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1,
-          ),
-        ),
-        const SizedBox(height: 16),
-        ...items.map(
-          (item) => Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Text(
-              item,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
-                fontSize: 13,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildMobileDrawer() {
     return Drawer(
-      backgroundColor: Colors.white,
-      child: Column(
-        children: [
-          // Drawer Header
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [primaryMaroon, secondaryMaroon],
+      backgroundColor: const Color(0xFFF6F0F2),
+      child: SafeArea(
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                primaryMaroon,
+                const Color(0xFF5D1934),
+                const Color(0xFFF6F0F2),
+              ],
+              stops: const [0.0, 0.34, 0.34],
+            ),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+                child: Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(28),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.1),
+                        Colors.white.withValues(alpha: 0.03),
+                      ],
+                    ),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.14),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 64,
+                        height: 64,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.14),
+                              blurRadius: 18,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Image.asset(
+                          'assets/jmclogo.png',
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(
+                              Icons.school,
+                              color: primaryMaroon,
+                              size: 30,
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "ALUMNI CONNECT",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 20,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Quick access to your portal sections",
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.78),
+                                fontSize: 13,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: accentGold.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  padding: const EdgeInsets.fromLTRB(12, 16, 12, 18),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFCFAFB),
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
                       ),
-                      child: Icon(
-                        Icons.workspace_premium,
-                        color: accentGold,
-                        size: 24,
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: ListView(
+                          padding: EdgeInsets.zero,
+                          children: [
+                            _buildDrawerItem(
+                              icon: Icons.home_rounded,
+                              title: "Home",
+                              accent: primaryMaroon,
+                              onTap: () {
+                                Navigator.pop(context);
+                                _scrollToSection(_homeKey);
+                              },
+                            ),
+                            _buildDrawerItem(
+                              icon: Icons.auto_awesome_rounded,
+                              title: "Features",
+                              accent: accentGold,
+                              onTap: () {
+                                Navigator.pop(context);
+                                _scrollToSection(_featuresKey);
+                              },
+                            ),
+                            _buildDrawerItem(
+                              icon: Icons.campaign_rounded,
+                              title: "Announcements",
+                              accent: secondaryMaroon,
+                              onTap: () {
+                                Navigator.pop(context);
+                                _scrollToSection(_announcementsKey);
+                              },
+                            ),
+                            _buildDrawerItem(
+                              icon: Icons.work_rounded,
+                              title: "Jobs",
+                              accent: primaryMaroon,
+                              onTap: () {
+                                Navigator.pop(context);
+                                _scrollToSection(_jobsKey);
+                              },
+                            ),
+                            _buildDrawerItem(
+                              icon: Icons.info_rounded,
+                              title: "About",
+                              accent: accentGold,
+                              onTap: () {
+                                Navigator.pop(context);
+                                _scrollToSection(_aboutKey);
+                              },
+                            ),
+                            _buildDrawerItem(
+                              icon: Icons.contact_mail_rounded,
+                              title: "Contact",
+                              accent: secondaryMaroon,
+                              onTap: () {
+                                Navigator.pop(context);
+                                _scrollToSection(_contactKey);
+                              },
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      "ALUMNI CONNECT",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                        letterSpacing: 1.2,
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const LoginPage(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.login_rounded),
+                          label: const Text("Login"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryMaroon,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "Navigate & Connect",
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: 14,
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const RegisterPage(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.person_add_alt_1_rounded),
+                          label: const Text("Get Started"),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: primaryMaroon,
+                            side: BorderSide(
+                              color: primaryMaroon.withValues(alpha: 0.25),
+                            ),
+                            backgroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-
-          // Navigation Items
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                _buildDrawerItem(
-                  icon: Icons.home,
-                  title: "Home",
-                  onTap: () {
-                    Navigator.pop(context); // Close drawer
-                    _scrollToSection(_homeKey);
-                  },
-                ),
-                _buildDrawerItem(
-                  icon: Icons.star,
-                  title: "Features",
-                  onTap: () {
-                    Navigator.pop(context);
-                    _scrollToSection(_featuresKey);
-                  },
-                ),
-                _buildDrawerItem(
-                  icon: Icons.announcement,
-                  title: "Announcements",
-                  onTap: () {
-                    Navigator.pop(context);
-                    _scrollToSection(_announcementsKey);
-                  },
-                ),
-                _buildDrawerItem(
-                  icon: Icons.work,
-                  title: "Jobs",
-                  onTap: () {
-                    Navigator.pop(context);
-                    _scrollToSection(_jobsKey);
-                  },
-                ),
-                _buildDrawerItem(
-                  icon: Icons.info,
-                  title: "About",
-                  onTap: () {
-                    Navigator.pop(context);
-                    _scrollToSection(_aboutKey);
-                  },
-                ),
-                _buildDrawerItem(
-                  icon: Icons.contact_mail,
-                  title: "Contact",
-                  onTap: () {
-                    Navigator.pop(context);
-                    _scrollToSection(_contactKey);
-                  },
-                ),
-                const Divider(height: 1),
-              ],
-            ),
-          ),
-
-          // Action Buttons
-          Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context); // Close drawer
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const LoginPage()),
-                      );
-                    },
-                    icon: const Icon(Icons.login),
-                    label: const Text("Login"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryMaroon,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context); // Close drawer
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const RegisterPage()),
-                      );
-                    },
-                    icon: const Icon(Icons.person_add),
-                    label: const Text("Get Started"),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: primaryMaroon,
-                      side: const BorderSide(color: Color(0xFF4A152C)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -2443,21 +2487,55 @@ class _LandingPageState extends State<LandingPage>
   Widget _buildDrawerItem({
     required IconData icon,
     required String title,
+    required Color accent,
     required VoidCallback onTap,
   }) {
-    return ListTile(
-      leading: Icon(icon, color: primaryMaroon),
-      title: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-          color: Colors.black87,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              color: accent.withValues(alpha: 0.05),
+              border: Border.all(color: accent.withValues(alpha: 0.12)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: accent, size: 20),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: darkText,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 14,
+                  color: accent.withValues(alpha: 0.7),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
-      onTap: onTap,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
     );
   }
 }

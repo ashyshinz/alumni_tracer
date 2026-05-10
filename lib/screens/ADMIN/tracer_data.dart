@@ -6,6 +6,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/api_service.dart';
+import '../../services/csv_export_service.dart';
+import '../../services/filter_options_service.dart';
 import '../../services/signed_tracer_filter.dart';
 import 'admin_accreditation_module.dart';
 
@@ -31,12 +33,34 @@ class _TracerDataPageState extends State<TracerDataPage> {
   String _generatedOn = '';
   String selectedStatus = "All Status";
   String selectedRelated = "All Degree Related";
+  List<String> _statusOptions = const ['All Status'];
+  List<String> _relatedOptions = const ['All Degree Related'];
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _loadFilterOptions();
     _fetchTracerData();
+  }
+
+  Future<void> _loadFilterOptions() async {
+    try {
+      final options = await FilterOptionsService.fetch();
+      if (!mounted) return;
+      setState(() {
+        _statusOptions = ['All Status', ...options.statuses];
+        _relatedOptions = ['All Degree Related', ...options.relatedOptions];
+        if (!_statusOptions.contains(selectedStatus)) {
+          selectedStatus = _statusOptions.first;
+        }
+        if (!_relatedOptions.contains(selectedRelated)) {
+          selectedRelated = _relatedOptions.first;
+        }
+      });
+    } catch (_) {
+      // Preserve existing fallback filters if the backend list is unavailable.
+    }
   }
 
   Future<void> _fetchTracerData() async {
@@ -44,8 +68,12 @@ class _TracerDataPageState extends State<TracerDataPage> {
     try {
       final response = await http.get(
         ApiService.uri('get_tracer_submissions.php'),
+        headers: ApiService.authHeaders(),
       );
-      final reportResponse = await http.get(ApiService.uri('get_reports.php'));
+      final reportResponse = await http.get(
+        ApiService.uri('get_reports.php'),
+        headers: ApiService.authHeaders(),
+      );
 
       if (response.statusCode == 200 && reportResponse.statusCode == 200) {
         final decoded = json.decode(response.body);
@@ -269,6 +297,24 @@ class _TracerDataPageState extends State<TracerDataPage> {
                                     ? 'Preparing PDF...'
                                     : 'Generate Report',
                               ),
+                            ),
+                            FilledButton.icon(
+                              onPressed: _filteredList.isEmpty
+                                  ? null
+                                  : _exportCsv,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: accentGold,
+                                foregroundColor: primaryMaroon,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 18,
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              icon: const Icon(Icons.table_view_outlined),
+                              label: const Text('Export CSV'),
                             ),
                           ],
                         ),
@@ -670,7 +716,7 @@ class _TracerDataPageState extends State<TracerDataPage> {
               child: _dropdown(
                 "Status",
                 selectedStatus,
-                ["All Status", "Employed", "Self-Employed", "Unemployed"],
+                _statusOptions,
                 (val) {
                   setState(() {
                     selectedStatus = val!;
@@ -684,7 +730,7 @@ class _TracerDataPageState extends State<TracerDataPage> {
               child: _dropdown(
                 "Related",
                 selectedRelated,
-                ["All Degree Related", "Yes", "Somewhat", "No"],
+                _relatedOptions,
                 (val) {
                   setState(() {
                     selectedRelated = val!;
@@ -878,6 +924,63 @@ class _TracerDataPageState extends State<TracerDataPage> {
     );
   }
 
+  List<List<String>> _buildTracerExportRows() {
+    final generatedOn = _generatedOn.isNotEmpty
+        ? _generatedOn
+        : _formatReportDate(DateTime.now());
+    final summary = [
+      ['Generated On', generatedOn, '', '', '', ''],
+      ['Status Filter', selectedStatus, '', '', '', ''],
+      ['Degree Related Filter', selectedRelated, '', '', '', ''],
+      ['Filtered Responses', _filteredList.length.toString(), '', '', '', ''],
+      ['Signed Records', _signedRecords.length.toString(), '', '', '', ''],
+      ['', '', '', '', '', ''],
+    ];
+
+    final rows = _filteredList
+        .map(
+          (data) => [
+            (data['full_name'] ?? 'N/A').toString(),
+            (data['employment_status'] ?? 'N/A').toString(),
+            (data['program'] ?? 'N/A').toString(),
+            (data['company_name'] ?? 'N/A').toString(),
+            (data['job_related'] ?? 'N/A').toString(),
+            (data['submitted_at'] ?? 'N/A').toString(),
+          ],
+        )
+        .toList();
+
+    return [...summary, ...rows];
+  }
+
+  Future<void> _exportCsv() async {
+    try {
+      final path = await CsvExportService.exportRows(
+        filename:
+            'tracer_responses_${DateTime.now().millisecondsSinceEpoch}.csv',
+        headers: const [
+          'Alumni Name',
+          'Employment Status',
+          'Program',
+          'Company',
+          'Degree Related',
+          'Submitted At',
+        ],
+        rows: _buildTracerExportRows(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('CSV exported: $path'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showErrorSnackBar('Failed to export CSV.');
+    }
+  }
+
   Future<void> _downloadAccreditationReport() async {
     if (_isExportingPdf) return;
 
@@ -898,6 +1001,22 @@ class _TracerDataPageState extends State<TracerDataPage> {
     final skillsAverage = _asDouble(kpis['skills_utilization']);
     final peoAverage = _asDouble(kpis['peo_average']);
     final total = _asInt(kpis['total_responses']);
+    final filteredCount = _filteredList.length;
+    final filterSummaryRows = [
+      ['Generated On', generatedOn],
+      ['Status Filter', selectedStatus],
+      ['Degree Related Filter', selectedRelated],
+      ['Filtered Response Count', '$filteredCount'],
+      ['Signed Record Count', '${_signedRecords.length}'],
+    ];
+    final filteredSnapshot = _filteredList.take(10).map((data) {
+      return [
+        (data['full_name'] ?? 'N/A').toString(),
+        (data['employment_status'] ?? 'N/A').toString(),
+        (data['program'] ?? 'N/A').toString(),
+        (data['company_name'] ?? 'N/A').toString(),
+      ];
+    }).toList();
 
     try {
       final pdf = pw.Document();
@@ -966,6 +1085,17 @@ class _TracerDataPageState extends State<TracerDataPage> {
               ['PEO Attainment', '${peoAverage.toStringAsFixed(1)}/5'],
               ['Total Tracer Responses', '$total'],
             ]),
+            pw.SizedBox(height: 18),
+            pw.Text(
+              'Current Export Scope',
+              style: pw.TextStyle(
+                fontWeight: pw.FontWeight.bold,
+                fontSize: 16,
+                color: PdfColor.fromHex('#4A152C'),
+              ),
+            ),
+            pw.SizedBox(height: 10),
+            _pdfMetricTable(filterSummaryRows),
             pw.SizedBox(height: 18),
             pw.Text(
               'Program Comparison',
@@ -1062,6 +1192,25 @@ class _TracerDataPageState extends State<TracerDataPage> {
                       'Track promotion, licensure, certification, and CPD more consistently to strengthen career growth evidence.',
                     ],
             ),
+            pw.SizedBox(height: 18),
+            pw.Text(
+              'Filtered Response Snapshot',
+              style: pw.TextStyle(
+                fontWeight: pw.FontWeight.bold,
+                fontSize: 16,
+                color: PdfColor.fromHex('#4A152C'),
+              ),
+            ),
+            pw.SizedBox(height: 10),
+            filteredSnapshot.isEmpty
+                ? pw.Text(
+                    'No filtered tracer records are available for the current export scope.',
+                    style: const pw.TextStyle(fontSize: 11),
+                  )
+                : _pdfMetricTable([
+                    ['Alumni', 'Status', 'Program', 'Company'],
+                    ...filteredSnapshot,
+                  ], header: true),
           ],
         ),
       );

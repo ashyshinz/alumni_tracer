@@ -110,7 +110,11 @@ class _AlumniDashboardState extends State<AlumniDashboard> {
         recentActivities = activityData;
 
         final submitted = tracerData['submitted'] == true;
-        tracerInfo = {'submitted': submitted ? 'Yes' : 'No'};
+        final draftSaved = tracerData['draft_saved'] == true;
+        tracerInfo = {
+          'submitted': submitted ? 'Yes' : 'No',
+          'draft_saved': draftSaved ? 'Yes' : 'No',
+        };
         isLoading = false;
       });
     } catch (e) {
@@ -456,14 +460,15 @@ class _AlumniDashboardState extends State<AlumniDashboard> {
   }
 
   Widget _tracerCard(BuildContext context) {
-    final submissionStatus =
-        tracerInfo != null && tracerInfo!['submitted'] == "Yes"
+    final isSubmitted = tracerInfo != null && tracerInfo!['submitted'] == "Yes";
+    final hasDraft = tracerInfo != null && tracerInfo!['draft_saved'] == "Yes";
+    final submissionStatus = isSubmitted
         ? "Submitted"
-        : "Not Submitted";
+        : (hasDraft ? "Draft Saved" : "Not Submitted");
 
-    final statusColor = submissionStatus == "Submitted"
+    final statusColor = isSubmitted
         ? Colors.green
-        : Colors.red;
+        : (hasDraft ? Colors.orange : Colors.red);
 
     return _cardBase(
       "Tracer Form Status",
@@ -472,19 +477,25 @@ class _AlumniDashboardState extends State<AlumniDashboard> {
         children: [
           _infoRow("Submission", submissionStatus, statusColor),
           const SizedBox(height: 16),
-          if (submissionStatus == "Not Submitted")
+          if (submissionStatus != "Submitted")
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.amber.shade50,
+                color: hasDraft ? Colors.orange.shade50 : Colors.amber.shade50,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.amber.shade200),
+                border: Border.all(
+                  color: hasDraft
+                      ? Colors.orange.shade200
+                      : Colors.amber.shade200,
+                ),
               ),
               child: Text(
-                "Please complete your tracer form to help us track alumni career outcomes.",
+                hasDraft
+                    ? "You have a saved tracer draft. Open the form anytime to continue and submit it."
+                    : "Please complete your tracer form to help us track alumni career outcomes.",
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.amber[900],
+                  color: hasDraft ? Colors.orange[900] : Colors.amber[900],
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -502,7 +513,7 @@ class _AlumniDashboardState extends State<AlumniDashboard> {
               child: Text(
                 submissionStatus == "Submitted"
                     ? "View Tracer Form"
-                    : "Complete Tracer Form",
+                    : (hasDraft ? "Continue Draft" : "Complete Tracer Form"),
               ),
             ),
           ),

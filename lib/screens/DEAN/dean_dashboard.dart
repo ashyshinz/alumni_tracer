@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/filter_options_service.dart';
 import '../../state/user_store.dart';
 import 'dean_analytics_data.dart';
 
@@ -32,6 +33,7 @@ class _DeanDashboardState extends State<DeanDashboard> {
   late final String? _assignedProgram;
   String _selectedProgram = 'All';
   bool _isLoading = true;
+  List<String> _programOptions = const ['All'];
 
   Map<String, dynamic> _summary = {
     'total_alumni': 0,
@@ -51,6 +53,10 @@ class _DeanDashboardState extends State<DeanDashboard> {
       widget.user['program'] ?? UserStore.value?['program'],
     );
     _selectedProgram = _assignedProgram ?? 'All';
+    _programOptions = _assignedProgram == null
+        ? const ['All']
+        : [_assignedProgram];
+    _loadFilterOptions();
     _fetchDashboardData();
   }
 
@@ -62,16 +68,28 @@ class _DeanDashboardState extends State<DeanDashboard> {
     return null;
   }
 
-  List<String> get _programOptions => _assignedProgram == null
-      ? const ['All', 'BSIT', 'BSSW']
-      : [_assignedProgram!];
-
-  String get _programLabel =>
-      _assignedProgram == null ? 'All Programs' : _assignedProgram!;
+  String get _programLabel => _assignedProgram ?? 'All Programs';
 
   String get _roleLabel => _assignedProgram == null
       ? 'Department Dean'
       : '$_assignedProgram Department Head';
+
+  Future<void> _loadFilterOptions() async {
+    if (_assignedProgram != null) return;
+
+    try {
+      final options = await FilterOptionsService.fetch();
+      if (!mounted) return;
+      setState(() {
+        _programOptions = ['All', ...options.programs];
+        if (!_programOptions.contains(_selectedProgram)) {
+          _selectedProgram = _programOptions.first;
+        }
+      });
+    } catch (_) {
+      // Preserve the fallback list when backend options are unavailable.
+    }
+  }
 
   Future<void> _fetchDashboardData() async {
     if (mounted) {
@@ -403,7 +421,7 @@ class _DeanDashboardState extends State<DeanDashboard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "Welcome, ${widget.user['name'] ?? '$_roleLabel'}!",
+                  "Welcome, ${widget.user['name'] ?? _roleLabel}!",
                   style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w800,
@@ -467,7 +485,7 @@ class _DeanDashboardState extends State<DeanDashboard> {
                           Icon(Icons.lock_outline, color: accentGold, size: 18),
                           const SizedBox(width: 10),
                           Text(
-                            _assignedProgram!,
+                            _assignedProgram,
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,

@@ -73,18 +73,19 @@ class _AdminMainLayoutState extends State<AdminMainLayout> {
     });
   }
 
+  Future<void> _openRecentActivityPage() async {
+    await fetchFullActivity(showLoader: true);
+    if (!mounted) return;
+    setState(() => _selectedIndex = 7);
+  }
+
   Future<void> fetchFullActivity({bool showLoader = true}) async {
     if (showLoader && mounted) {
       setState(() => _isLoadingActivity = true);
     }
 
     try {
-      final response = await http.get(
-        ApiService.uri(
-          'get_full_activity.php',
-          queryParameters: {'role': 'admin'},
-        ),
-      );
+      final response = await http.get(ApiService.uri('get_full_activity.php'));
 
       if (!mounted) return;
 
@@ -246,7 +247,7 @@ class _AdminMainLayoutState extends State<AdminMainLayout> {
       AdminDashboard(
         user: widget.user,
         onActionSelected: (index) => setState(() => _selectedIndex = index),
-        onOpenRecentActivity: () => setState(() => _selectedIndex = 7),
+        onOpenRecentActivity: _openRecentActivityPage,
         onOpenLatestUsers: () => setState(() => _selectedIndex = 8),
       ),
       const AlumniList(),

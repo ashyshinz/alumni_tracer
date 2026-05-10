@@ -5,6 +5,8 @@ import 'login_screen.dart';
 import '../services/activity_service.dart';
 import '../services/api_service.dart';
 import '../services/linkedin_auth_service.dart';
+import '../utils/email_validator.dart';
+import '../utils/password_policy.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key, this.linkedInPrefill});
@@ -55,9 +57,8 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Future<void> _handleRegister() async {
     if (_formKey.currentState!.validate()) {
-      // ✅ ADD THIS (password check)
       if (passwordController.text != confirmPasswordController.text) {
-        _showError("Passwords do not match");
+        _showError("Passwords do not match.");
         return;
       }
 
@@ -119,7 +120,6 @@ class _RegisterPageState extends State<RegisterPage> {
           );
           _showSuccess();
         } else {
-          // ✅ OPTIONAL IMPROVEMENT (shows backend message)
           _showError(
             data['message']?.toString() ??
                 (response.statusCode == 200
@@ -128,7 +128,7 @@ class _RegisterPageState extends State<RegisterPage> {
           );
         }
       } catch (e) {
-        _showError("Connection error");
+        _showError("Check your internet or server connection.");
       }
 
       setState(() => isLoading = false);
@@ -436,7 +436,28 @@ class _RegisterPageState extends State<RegisterPage> {
         filled: true,
         fillColor: readOnly ? Colors.white12 : Colors.white10,
       ),
-      validator: (val) => val!.isEmpty ? "Required" : null,
+      validator: (val) {
+        final value = val ?? '';
+        if (label == "Email") {
+          return EmailValidator.validate(value);
+        }
+        if (label == "Password") {
+          return PasswordPolicy.validate(value);
+        }
+        if (label == "Confirm") {
+          if (value.trim().isEmpty) {
+            return "Confirm password is required.";
+          }
+          if (value != passwordController.text) {
+            return "Passwords do not match.";
+          }
+          return null;
+        }
+        if (value.trim().isEmpty) {
+          return "$label is required.";
+        }
+        return null;
+      },
     );
   }
 
@@ -461,7 +482,7 @@ class _RegisterPageState extends State<RegisterPage> {
           .map((e) => DropdownMenuItem(value: e, child: Text(e)))
           .toList(),
       onChanged: onChanged,
-      validator: (val) => val == null ? "Required" : null,
+      validator: (val) => val == null ? "$hint is required." : null,
     );
   }
 }

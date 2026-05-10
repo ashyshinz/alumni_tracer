@@ -72,6 +72,10 @@ class _ProgramConfig {
     required this.licensureResultLabel,
     required this.skillsOptions,
     required this.peoStatements,
+    required this.curriculumSatisfactionLabel,
+    required this.recommendationLabel,
+    required this.reputationLabel,
+    required this.feedbackCompetenciesLabel,
   });
 
   final String programCode;
@@ -84,6 +88,10 @@ class _ProgramConfig {
   final String licensureResultLabel;
   final List<String> skillsOptions;
   final List<String> peoStatements;
+  final String curriculumSatisfactionLabel;
+  final String recommendationLabel;
+  final String reputationLabel;
+  final String feedbackCompetenciesLabel;
 }
 
 class _CareerTimelineEntry {
@@ -242,6 +250,7 @@ class _TracerFormPageState extends State<TracerFormPage> {
   bool _isLoading = true;
   bool _isSaving = false;
   bool _hasExistingSubmission = false;
+  bool _hasDraftSaved = false;
   bool _isReadOnly = false;
   bool _isCareerUpdateMode = false;
   bool _agreeToConsent = false;
@@ -265,13 +274,12 @@ class _TracerFormPageState extends State<TracerFormPage> {
     _QuestionDef(
       key: 'name',
       label: 'Name',
-      numberLabel: '1a',
+      numberLabel: '1',
       type: _FieldType.text,
     ),
     _QuestionDef(
       key: 'tracer_batch',
       label: 'Tracer Batch',
-      numberLabel: '1',
       type: _FieldType.dropdown,
       options: ['1 Year After Graduation', '3 Years', '5 Years'],
       required: true,
@@ -335,8 +343,8 @@ class _TracerFormPageState extends State<TracerFormPage> {
     ),
   ];
 
-  final List<_QuestionDef> _employmentQuestions = const [
-    _QuestionDef(
+  List<_QuestionDef> get _employmentQuestions => [
+    const _QuestionDef(
       key: 'employment_status',
       label: '11. Current Employment Status',
       type: _FieldType.dropdown,
@@ -349,7 +357,7 @@ class _TracerFormPageState extends State<TracerFormPage> {
       ],
       required: true,
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'unemployed_reason',
       label: '12. If unemployed, reason',
       type: _FieldType.dropdown,
@@ -361,13 +369,13 @@ class _TracerFormPageState extends State<TracerFormPage> {
         'Others',
       ],
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'unemployed_reason_other',
       label: 'Other reason',
       numberLabel: '12a',
       type: _FieldType.text,
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'time_to_first_job',
       label: '13. Time to first employment after graduation',
       type: _FieldType.dropdown,
@@ -379,47 +387,47 @@ class _TracerFormPageState extends State<TracerFormPage> {
         '>1 year',
       ],
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'first_job_related',
       label: '14. First job related to degree?',
       type: _FieldType.dropdown,
       options: ['Yes', 'Partly', 'No'],
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'job_type',
       label: '15. Present Employment Type',
       type: _FieldType.dropdown,
       options: ['Full-time', 'Part-time', 'Project-based', 'Freelance'],
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'job_title',
       label: '16. Job Title / Position',
       type: _FieldType.text,
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'employer',
       label: '17. Employer / Agency / Organization',
       type: _FieldType.text,
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'sector',
       label: '18. Sector',
       type: _FieldType.dropdown,
       options: ['Government', 'Private', 'NGO', 'Academic', 'Overseas'],
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'country',
       label: '19. Country of Work',
       type: _FieldType.dropdown,
       options: ['Philippines', 'Other'],
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'country_other',
       label: 'Specify country',
       numberLabel: '19a',
       type: _FieldType.text,
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'monthly_income',
       label: '20. Monthly Income',
       type: _FieldType.dropdown,
@@ -427,11 +435,11 @@ class _TracerFormPageState extends State<TracerFormPage> {
     ),
     _QuestionDef(
       key: 'related_job',
-      label: '21. Is your current job related to your degree?',
+      label: _config.currentJobRelatedLabel,
       type: _FieldType.dropdown,
       options: ['Yes', 'Somewhat', 'No'],
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'underutilized_reason',
       label: '22. If not related, main reason',
       type: _FieldType.dropdown,
@@ -443,27 +451,27 @@ class _TracerFormPageState extends State<TracerFormPage> {
         'Job satisfaction in another field',
       ],
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'employment_duration',
       label: '23. How long have you been in your current position?',
       type: _FieldType.dropdown,
       options: ['<6 months', '6-12 months', '1-2 years', '3+ years'],
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'promoted',
       label: '24. Have you been promoted since your first job?',
       type: _FieldType.dropdown,
       options: ['Yes', 'No'],
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'want_more_hours',
       label: '25. Would you like to work more hours than you currently do?',
       type: _FieldType.dropdown,
       options: ['Yes', 'No'],
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'more_hours_reason',
-      label: 'If no, why?',
+      label: 'If yes, why?',
       numberLabel: '25a',
       type: _FieldType.dropdown,
       options: [
@@ -473,7 +481,7 @@ class _TracerFormPageState extends State<TracerFormPage> {
         'Lack of local opportunities',
       ],
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'job_satisfaction',
       label: '26. Rate your overall job satisfaction',
       type: _FieldType.rating,
@@ -527,17 +535,17 @@ class _TracerFormPageState extends State<TracerFormPage> {
       options: ['Rank-and-file', 'Supervisory', 'Managerial', 'Executive'],
     ),
   ];
-  final List<_QuestionDef> _satisfactionQuestions = const [
+  List<_QuestionDef> get _satisfactionQuestions => [
     _QuestionDef(
       key: 'satisfaction_curriculum',
-      label: 'Curriculum relevance to professional practice',
+      label: _config.curriculumSatisfactionLabel,
       numberLabel: '48',
       type: _FieldType.rating,
       min: 1,
       max: 5,
       required: true,
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'satisfaction_faculty',
       label: 'Quality of faculty instruction and mentorship',
       numberLabel: '49',
@@ -546,7 +554,7 @@ class _TracerFormPageState extends State<TracerFormPage> {
       max: 5,
       required: true,
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'satisfaction_practicum',
       label: 'Field instruction / practicum supervision',
       numberLabel: '50',
@@ -555,7 +563,7 @@ class _TracerFormPageState extends State<TracerFormPage> {
       max: 5,
       required: true,
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'satisfaction_resources',
       label: 'Library, Wi-Fi, and research resources',
       numberLabel: '51',
@@ -564,7 +572,7 @@ class _TracerFormPageState extends State<TracerFormPage> {
       max: 5,
       required: true,
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'satisfaction_guidance',
       label: 'Guidance, counseling, and student support services',
       numberLabel: '52',
@@ -573,7 +581,7 @@ class _TracerFormPageState extends State<TracerFormPage> {
       max: 5,
       required: true,
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'satisfaction_career',
       label: 'Career placement and alumni services',
       numberLabel: '53',
@@ -582,7 +590,7 @@ class _TracerFormPageState extends State<TracerFormPage> {
       max: 5,
       required: true,
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'satisfaction_admin',
       label: 'Administrative services and transactions',
       numberLabel: '54',
@@ -591,9 +599,9 @@ class _TracerFormPageState extends State<TracerFormPage> {
       max: 5,
       required: true,
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'satisfaction_overall',
-      label: 'Overall satisfaction with JMCFI academic environment',
+      label: 'Overall satisfaction with JMCFI’s academic environment',
       numberLabel: '55',
       type: _FieldType.rating,
       min: 1,
@@ -601,10 +609,10 @@ class _TracerFormPageState extends State<TracerFormPage> {
       required: true,
     ),
   ];
-  final List<_QuestionDef> _engagementQuestions = const [
+  List<_QuestionDef> get _engagementQuestions => [
     _QuestionDef(
       key: 'recommendation',
-      label: '56. How likely are you to recommend this program to others?',
+      label: _config.recommendationLabel,
       type: _FieldType.decade,
       min: 0,
       max: 10,
@@ -612,8 +620,7 @@ class _TracerFormPageState extends State<TracerFormPage> {
     ),
     _QuestionDef(
       key: 'reputation',
-      label:
-          '57. How would you describe JMCFI reputation in the professional community?',
+      label: _config.reputationLabel,
       type: _FieldType.dropdown,
       options: [
         'Very negative',
@@ -633,21 +640,20 @@ class _TracerFormPageState extends State<TracerFormPage> {
       required: true,
     ),
   ];
-  final List<_QuestionDef> _feedbackQuestions = const [
+  List<_QuestionDef> get _feedbackQuestions => [
     _QuestionDef(
       key: 'feedback_1',
-      label:
-          '59. What specific competencies should be strengthened in the curriculum?',
+      label: _config.feedbackCompetenciesLabel,
       type: _FieldType.multiline,
       required: true,
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'feedback_2',
       label: '60. What aspects of field instruction need improvement?',
       type: _FieldType.multiline,
       required: true,
     ),
-    _QuestionDef(
+    const _QuestionDef(
       key: 'feedback_3',
       label:
           '61. How can JMCFI support alumni in career advancement and lifelong learning?',
@@ -801,6 +807,14 @@ class _TracerFormPageState extends State<TracerFormPage> {
           'Use supervision to develop critical self-reflective practice for professional growth.',
           'Produce and maintain portfolios, recordings, and case documentation reflecting quality practice.',
         ],
+        curriculumSatisfactionLabel:
+            'Curriculum relevance to social work practice',
+        recommendationLabel:
+            '56. How likely are you to recommend JMCFI’s Social Work program to others?',
+        reputationLabel:
+            '57. How would you describe JMCFI’s reputation in the social work community?',
+        feedbackCompetenciesLabel:
+            '59. What specific competencies should be strengthened in the BSSW curriculum?',
       );
     }
 
@@ -836,6 +850,13 @@ class _TracerFormPageState extends State<TracerFormPage> {
         'Demonstrate leadership and innovation, taking initiative to lead projects, drive technological advancements, and contribute to organizational success.',
         'Engage in continuous learning and professional development to adapt to the evolving field of information technology.',
       ],
+      curriculumSatisfactionLabel: 'Curriculum relevance to IT practice',
+      recommendationLabel:
+          '56. How likely are you to recommend JMCFI’s BSIT program to others?',
+      reputationLabel:
+          '57. How would you describe JMCFI’s reputation in the IT community?',
+      feedbackCompetenciesLabel:
+          '59. What specific competencies should be strengthened in the BSIT curriculum?',
     );
   }
 
@@ -880,16 +901,17 @@ class _TracerFormPageState extends State<TracerFormPage> {
       options: const ['Yes', 'No'],
       required: true,
     ),
-    _QuestionDef(
-      key: 'licensure_type',
-      label: _config.licensureTypeLabel,
-      numberLabel: '35a',
-      type: _FieldType.text,
-    ),
+    if (_config.programCode == 'BSIT')
+      _QuestionDef(
+        key: 'licensure_type',
+        label: _config.licensureTypeLabel,
+        numberLabel: '35a',
+        type: _FieldType.text,
+      ),
     _QuestionDef(
       key: 'licensure_result',
       label: _config.licensureResultLabel,
-      numberLabel: '35b',
+      numberLabel: _config.programCode == 'BSIT' ? '35b' : '35a',
       type: _FieldType.dropdown,
       options: const ['Passed', 'Did not pass', 'Pending'],
     ),
@@ -915,6 +937,7 @@ class _TracerFormPageState extends State<TracerFormPage> {
           'check_tracer.php',
           queryParameters: {'alumni_id': '${widget.userId}'},
         ),
+        headers: ApiService.authHeaders(),
       );
 
       final body = response.body.trim();
@@ -933,13 +956,25 @@ class _TracerFormPageState extends State<TracerFormPage> {
           decoded['submitted'] == true ||
           decoded['status'] == 'submitted' ||
           decoded['is_submitted'] == true;
+      final draftSaved =
+          decoded['draft_saved'] == true ||
+          decoded['status'] == 'draft' ||
+          decoded['is_draft'] == true;
 
       final payload = _extractSubmissionPayload(decoded);
 
       if (submitted) {
         _hasExistingSubmission = true;
+        _hasDraftSaved = false;
         _isReadOnly = true;
         _applyExistingData(payload);
+      } else if (draftSaved) {
+        _hasExistingSubmission = false;
+        _hasDraftSaved = true;
+        _isReadOnly = false;
+        _applyExistingData(payload);
+        _submissionDateIso = '';
+        _syncSubmissionDateController();
       }
 
       _applySignedSubmissionMeta(
@@ -1199,49 +1234,17 @@ class _TracerFormPageState extends State<TracerFormPage> {
     });
   }
 
-  Future<void> _submit() async {
-    if (_isReadOnly) return;
-    if (!_formKey.currentState!.validate()) {
-      _showSnack('Please fill in the required fields before submitting.');
-      return;
-    }
-    if (!_agreeToConsent) {
-      _showSnack('Please confirm the data privacy consent.');
-      return;
-    }
-    if (_multiSelectValues['skills']!.isEmpty) {
-      _showSnack('Please select at least one competency you use at work.');
-      return;
-    }
-
-    final timeline = _careerTimeline
-        .where((entry) => entry.hasMeaningfulValue)
-        .map((entry) => entry.toMap())
-        .toList();
-
-    if (_isCurrentlyEmployed && timeline.isEmpty) {
-      _showSnack('Please add at least one career timeline entry.');
-      return;
-    }
-
-    String signatureBase64 = _existingSignatureBase64 ?? '';
-    if (_signature.isNotEmpty) {
-      final sign = await _signature.toPngBytes();
-      if (sign != null) signatureBase64 = base64Encode(sign);
-    }
-    if (signatureBase64.isNotEmpty == false) {
-      _showSnack('Signature is required before saving the tracer form.');
-      return;
-    }
-
-    final isoDate = _submissionDateIso.isEmpty
-        ? DateTime.now().toIso8601String()
-        : _submissionDateIso;
+  Map<String, dynamic> _buildTracerPayload({
+    required bool saveAsDraft,
+    required List<Map<String, dynamic>> timeline,
+    required String signatureBase64,
+    required String isoDate,
+  }) {
     final latestCareer = timeline.isNotEmpty
         ? timeline.last
         : <String, dynamic>{};
 
-    final data = {
+    return {
       'user_id': widget.userId,
       'program': _config.programCode,
       'name': _text('name'),
@@ -1317,6 +1320,7 @@ class _TracerFormPageState extends State<TracerFormPage> {
       'career_timeline': timeline,
       'is_update': _hasExistingSubmission,
       'updated_career_timeline': _isCareerUpdateMode,
+      'save_as_draft': saveAsDraft,
       for (var i = 0; i < _config.peoStatements.length; i++)
         'peo_${i + 1}': _ratingValues['peo_${i + 1}']?.round() ?? 0,
       'satisfaction_curriculum':
@@ -1334,12 +1338,111 @@ class _TracerFormPageState extends State<TracerFormPage> {
       'satisfaction_overall':
           _ratingValues['satisfaction_overall']?.round() ?? 0,
     };
+  }
+
+  Future<void> _saveDraft() async {
+    if (_isReadOnly) return;
+
+    final timeline = _careerTimeline
+        .where((entry) => entry.hasMeaningfulValue)
+        .map((entry) => entry.toMap())
+        .toList();
+
+    String signatureBase64 = _existingSignatureBase64 ?? '';
+    if (_signature.isNotEmpty) {
+      final sign = await _signature.toPngBytes();
+      if (sign != null) signatureBase64 = base64Encode(sign);
+    }
+
+    final data = _buildTracerPayload(
+      saveAsDraft: true,
+      timeline: timeline,
+      signatureBase64: signatureBase64,
+      isoDate: DateTime.now().toIso8601String(),
+    );
 
     setState(() => _isSaving = true);
     try {
       final response = await http.post(
         ApiService.uri('submit_tracer.php'),
-        headers: {'Content-Type': 'application/json'},
+        headers: ApiService.jsonHeaders(),
+        body: jsonEncode(data),
+      );
+      final result = _parseJsonResponse(response);
+      if (result['success'] == true) {
+        setState(() {
+          _hasDraftSaved = true;
+          _hasExistingSubmission = false;
+          _isReadOnly = false;
+          _isCareerUpdateMode = false;
+          _submissionDateIso = '';
+          _syncSubmissionDateController();
+          if (signatureBase64.isNotEmpty) {
+            _existingSignatureBase64 = signatureBase64;
+            _existingSignatureBytes = base64Decode(signatureBase64);
+          }
+        });
+        _showSnack('Tracer draft saved successfully.');
+      } else {
+        _showSnack(result['message']?.toString() ?? 'Draft save failed.');
+      }
+    } catch (e) {
+      _showSnack('Unable to save tracer draft: $e');
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _submit() async {
+    if (_isReadOnly) return;
+    if (!_formKey.currentState!.validate()) {
+      _showSnack('Please fill in the required fields before submitting.');
+      return;
+    }
+    if (!_agreeToConsent) {
+      _showSnack('Please confirm the data privacy consent.');
+      return;
+    }
+    if (_multiSelectValues['skills']!.isEmpty) {
+      _showSnack('Please select at least one competency you use at work.');
+      return;
+    }
+
+    final timeline = _careerTimeline
+        .where((entry) => entry.hasMeaningfulValue)
+        .map((entry) => entry.toMap())
+        .toList();
+
+    if (_isCurrentlyEmployed && timeline.isEmpty) {
+      _showSnack('Please add at least one career timeline entry.');
+      return;
+    }
+
+    String signatureBase64 = _existingSignatureBase64 ?? '';
+    if (_signature.isNotEmpty) {
+      final sign = await _signature.toPngBytes();
+      if (sign != null) signatureBase64 = base64Encode(sign);
+    }
+    if (signatureBase64.isNotEmpty == false) {
+      _showSnack('Signature is required before saving the tracer form.');
+      return;
+    }
+
+    final isoDate = _submissionDateIso.isEmpty
+        ? DateTime.now().toIso8601String()
+        : _submissionDateIso;
+    final data = _buildTracerPayload(
+      saveAsDraft: false,
+      timeline: timeline,
+      signatureBase64: signatureBase64,
+      isoDate: isoDate,
+    );
+
+    setState(() => _isSaving = true);
+    try {
+      final response = await http.post(
+        ApiService.uri('submit_tracer.php'),
+        headers: ApiService.jsonHeaders(),
         body: jsonEncode(data),
       );
       final result = _parseJsonResponse(response);
@@ -1350,6 +1453,7 @@ class _TracerFormPageState extends State<TracerFormPage> {
               .toString();
           _syncSubmissionDateController();
           _hasExistingSubmission = true;
+          _hasDraftSaved = false;
           _isReadOnly = true;
           _isCareerUpdateMode = false;
           _existingSignatureBase64 = signatureBase64;
@@ -1760,16 +1864,22 @@ class _TracerFormPageState extends State<TracerFormPage> {
               _buildInfoChip(
                 icon: _hasExistingSubmission
                     ? Icons.verified_outlined
-                    : Icons.pending_actions_outlined,
+                    : (_hasDraftSaved
+                          ? Icons.save_outlined
+                          : Icons.pending_actions_outlined),
                 label: _hasExistingSubmission
                     ? 'Form Submitted'
-                    : 'Draft / New Form',
-                color: _hasExistingSubmission ? Colors.green : Colors.orange,
+                    : (_hasDraftSaved ? 'Draft Saved' : 'Draft / New Form'),
+                color: _hasExistingSubmission
+                    ? Colors.green
+                    : (_hasDraftSaved ? Colors.orange : Colors.orange),
               ),
               _buildInfoChip(
                 icon: Icons.calendar_today_outlined,
                 label: _submissionDateIso.isEmpty
-                    ? 'No submission date yet'
+                    ? (_hasDraftSaved
+                          ? 'Awaiting final submission'
+                          : 'No submission date yet')
                     : 'Submitted ${_formatDate(_submissionDateIso)}',
                 color: _maroon,
               ),
@@ -2232,29 +2342,35 @@ class _TracerFormPageState extends State<TracerFormPage> {
     }
   }
 
-  int _countVisible(List<_QuestionDef> questions) {
-    return questions.where(_shouldShowQuestion).length;
-  }
-
   int? _questionNumber(_QuestionDef question) {
+    if (!_isNumberedQuestion(question)) {
+      return null;
+    }
+
     final graduateVisible = _graduateProfileQuestions
         .where(_shouldShowQuestion)
+        .where(_isNumberedQuestion)
         .toList();
     final employmentVisible = _employmentQuestions
         .where(_shouldShowQuestion)
+        .where(_isNumberedQuestion)
         .toList();
     final skillsVisible = _skillsQuestions.where(_shouldShowQuestion).toList();
     final developmentVisible = _developmentQuestions
         .where(_shouldShowQuestion)
+        .where(_isNumberedQuestion)
         .toList();
     final satisfactionVisible = _satisfactionQuestions
         .where(_shouldShowQuestion)
+        .where(_isNumberedQuestion)
         .toList();
     final engagementVisible = _engagementQuestions
         .where(_shouldShowQuestion)
+        .where(_isNumberedQuestion)
         .toList();
     final feedbackVisible = _feedbackQuestions
         .where(_shouldShowQuestion)
+        .where(_isNumberedQuestion)
         .toList();
 
     final graduateIndex = graduateVisible.indexWhere(
@@ -2335,11 +2451,19 @@ class _TracerFormPageState extends State<TracerFormPage> {
     return null;
   }
 
+  bool _isNumberedQuestion(_QuestionDef question) {
+    return question.key != 'tracer_batch';
+  }
+
+  int _countNumberedVisible(List<_QuestionDef> questions) {
+    return questions.where(_shouldShowQuestion).where(_isNumberedQuestion).length;
+  }
+
   int get _peoStartNumber =>
-      _countVisible(_graduateProfileQuestions) +
-      _countVisible(_employmentQuestions) +
-      _countVisible(_skillsQuestions) +
-      _countVisible(_developmentQuestions) +
+      _countNumberedVisible(_graduateProfileQuestions) +
+      _countNumberedVisible(_employmentQuestions) +
+      _countNumberedVisible(_skillsQuestions) +
+      _countNumberedVisible(_developmentQuestions) +
       1;
 
   String _displayQuestionLabel(_QuestionDef question) {
@@ -2347,7 +2471,7 @@ class _TracerFormPageState extends State<TracerFormPage> {
       RegExp(r'^\s*\d+[A-Za-z]?\.\s*'),
       '',
     );
-    final number = _questionNumber(question);
+    final number = question.numberLabel ?? _questionNumber(question)?.toString();
     return number == null ? stripped : '$number. $stripped';
   }
 
@@ -2957,7 +3081,9 @@ class _TracerFormPageState extends State<TracerFormPage> {
             final signatureField = TextFormField(
               initialValue: _hasExistingSubmission
                   ? 'Saved signature on file'
-                  : '',
+                  : (_existingSignatureBytes != null
+                        ? 'Draft signature on file'
+                        : ''),
               readOnly: true,
               decoration: _inputDecoration('Signature Status'),
             );
@@ -3030,35 +3156,72 @@ class _TracerFormPageState extends State<TracerFormPage> {
         ],
         const SizedBox(height: 20),
         if (!_isReadOnly)
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _isSaving ? null : _submit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _maroon,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 640;
+              final draftButton = OutlinedButton.icon(
+                onPressed: _isSaving ? null : _saveDraft,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _maroon,
+                  side: const BorderSide(color: _maroon),
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
                 ),
-              ),
-              icon: _isSaving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.save_outlined),
-              label: Text(
-                _hasExistingSubmission
-                    ? 'Update Tracer Form'
-                    : 'Submit Tracer Form',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
+                icon: const Icon(Icons.save_as_outlined),
+                label: Text(
+                  _hasDraftSaved ? 'Update Draft' : 'Save Draft',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              );
+
+              final submitButton = ElevatedButton.icon(
+                onPressed: _isSaving ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _maroon,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.save_outlined),
+                label: Text(
+                  _hasExistingSubmission
+                      ? 'Update Tracer Form'
+                      : 'Submit Tracer Form',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              );
+
+              if (isCompact) {
+                return Column(
+                  children: [
+                    SizedBox(width: double.infinity, child: draftButton),
+                    const SizedBox(height: 12),
+                    SizedBox(width: double.infinity, child: submitButton),
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: draftButton),
+                  const SizedBox(width: 16),
+                  Expanded(child: submitButton),
+                ],
+              );
+            },
           ),
       ],
     );

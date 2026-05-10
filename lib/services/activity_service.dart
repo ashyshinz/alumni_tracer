@@ -36,6 +36,17 @@ class ActivityService {
         _cleanText(userEmail) ?? _cleanText(currentUser?['email']);
     final resolvedRole =
         _cleanText(role) ?? _cleanText(currentUser?['role']) ?? 'alumni';
+    final resolvedProgram = _cleanText(
+      currentUser?['program'] ??
+          currentUser?['degree'] ??
+          currentUser?['major'],
+    );
+    final normalizedMetadata = <String, dynamic>{
+      if (resolvedUserId != null) 'actor_user_id': resolvedUserId,
+      if (resolvedEmail != null) 'actor_email': resolvedEmail,
+      if (resolvedProgram != null) 'program': resolvedProgram,
+      ...?metadata,
+    };
 
     final payload =
         <String, dynamic>{
@@ -51,7 +62,7 @@ class ActivityService {
           'target_id': _cleanText(targetId),
           'target_type': _cleanText(targetType),
           'description': _cleanText(description),
-          'metadata': metadata ?? const <String, dynamic>{},
+          'metadata': normalizedMetadata,
           'occurred_at': DateTime.now().toIso8601String(),
           'source': 'flutter_app',
         }..removeWhere((key, value) {
@@ -64,7 +75,7 @@ class ActivityService {
       await http
           .post(
             ApiService.uri('log_activity.php'),
-            headers: const {'Content-Type': 'application/json'},
+            headers: ApiService.jsonHeaders(),
             body: jsonEncode(payload),
           )
           .timeout(const Duration(seconds: 6));

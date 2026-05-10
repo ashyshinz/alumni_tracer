@@ -57,11 +57,61 @@ class _SettingsPageState extends State<SettingsPage> {
     super.dispose();
   }
 
+  String _lastLoginText() {
+    final currentUser = UserStore.value ?? widget.user;
+    final rawValue =
+        currentUser['last_login'] ??
+        currentUser['lastLogin'] ??
+        currentUser['last_login_at'] ??
+        currentUser['lastLoginAt'];
+
+    final formatted = _formatLastLogin(rawValue);
+    if (formatted != null) {
+      return "Your account is active and secure. Last login: $formatted";
+    }
+
+    return "Your account is active and secure. Last login will appear here once the backend provides it.";
+  }
+
+  String? _formatLastLogin(dynamic value) {
+    final raw = value?.toString().trim() ?? '';
+    if (raw.isEmpty) return null;
+
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return raw;
+
+    final local = parsed.toLocal();
+    final months = const [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+
+    final hour = local.hour == 0
+        ? 12
+        : local.hour > 12
+        ? local.hour - 12
+        : local.hour;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final period = local.hour >= 12 ? 'PM' : 'AM';
+
+    return '${months[local.month - 1]} ${local.day}, ${local.year} at $hour:$minute $period';
+  }
+
   Future<void> _updateSettings() async {
     try {
       final response = await http.post(
         ApiService.uri('update_settings.php'),
-        headers: {'Content-Type': 'application/json'},
+        headers: ApiService.jsonHeaders(),
         body: jsonEncode({
           'userId': widget.user['id'],
           'emailAnnouncements': _emailAnnouncements,
@@ -108,7 +158,7 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       final response = await http.post(
         ApiService.uri('change_password.php'),
-        headers: {'Content-Type': 'application/json'},
+        headers: ApiService.jsonHeaders(),
         body: jsonEncode({
           'userId': widget.user['id'],
           'currentPassword': _currentPasswordController.text,
@@ -266,9 +316,9 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        "Your account is active and secure. Last login: March 16, 2026 at 9:30 AM",
-                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      Text(
+                        _lastLoginText(),
+                        style: const TextStyle(color: Colors.grey, fontSize: 13),
                       ),
                       const SizedBox(height: 20),
                       const Text(

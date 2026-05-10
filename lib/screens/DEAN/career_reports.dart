@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../../services/api_service.dart';
+import '../../services/csv_export_service.dart';
+import '../../services/filter_options_service.dart';
 import '../../services/signed_tracer_filter.dart';
 import '../../state/user_store.dart';
 
@@ -26,6 +28,9 @@ class _CareerReportsPageState extends State<CareerReportsPage> {
   String selectedBatch = 'All Batches';
   String selectedStatus = 'All Status';
   bool _isLoading = true;
+  List<String> _programOptions = const ['BSIT', 'BSSW'];
+  List<String> _batchOptions = const ['All Batches'];
+  List<String> _statusOptions = const ['All Status'];
 
   List<Map<String, dynamic>> _allRows = [];
   List<Map<String, dynamic>> _rows = [];
@@ -36,6 +41,10 @@ class _CareerReportsPageState extends State<CareerReportsPage> {
     super.initState();
     _assignedProgram = _normalizeProgram(UserStore.value?['program']);
     selectedProgram = _assignedProgram ?? 'BSIT';
+    _programOptions = _assignedProgram == null
+        ? const ['BSIT', 'BSSW']
+        : [_assignedProgram];
+    _loadFilterOptions();
     _fetchReports();
   }
 
@@ -47,8 +56,30 @@ class _CareerReportsPageState extends State<CareerReportsPage> {
     return null;
   }
 
-  List<String> get _programOptions =>
-      _assignedProgram == null ? const ['BSIT', 'BSSW'] : [_assignedProgram!];
+  Future<void> _loadFilterOptions() async {
+    try {
+      final options = await FilterOptionsService.fetch(program: selectedProgram);
+      if (!mounted) return;
+      setState(() {
+        _programOptions = _assignedProgram == null
+            ? (options.programs.isEmpty ? const ['BSIT', 'BSSW'] : options.programs)
+            : [_assignedProgram];
+        _batchOptions = ['All Batches', ...options.years];
+        _statusOptions = ['All Status', ...options.statuses];
+        if (!_programOptions.contains(selectedProgram)) {
+          selectedProgram = _programOptions.first;
+        }
+        if (!_batchOptions.contains(selectedBatch)) {
+          selectedBatch = _batchOptions.first;
+        }
+        if (!_statusOptions.contains(selectedStatus)) {
+          selectedStatus = _statusOptions.first;
+        }
+      });
+    } catch (_) {
+      // Preserve local fallback values when filter metadata is unavailable.
+    }
+  }
 
   Future<void> _fetchReports() async {
     if (mounted) {
@@ -61,12 +92,14 @@ class _CareerReportsPageState extends State<CareerReportsPage> {
           'get_tracer_submissions.php',
           queryParameters: {'program': selectedProgram},
         ),
+        headers: ApiService.authHeaders(),
       );
       final reportResponse = await http.get(
         ApiService.uri(
           'get_reports.php',
           queryParameters: {'program': selectedProgram},
         ),
+        headers: ApiService.authHeaders(),
       );
 
       if (tracerResponse.statusCode != 200 ||
@@ -97,6 +130,16 @@ class _CareerReportsPageState extends State<CareerReportsPage> {
         _report = reportDecoded is Map
             ? Map<String, dynamic>.from(reportDecoded['report'] ?? const {})
             : <String, dynamic>{};
+        final dynamicBatches = _allRows
+            .map((row) => (row['year_graduated'] ?? '').toString())
+            .where((value) => value.isNotEmpty && value != 'null')
+            .toSet()
+            .toList()
+          ..sort();
+        _batchOptions = ['All Batches', ...dynamicBatches];
+        if (!_batchOptions.contains(selectedBatch)) {
+          selectedBatch = _batchOptions.first;
+        }
         _applyFilters();
         _isLoading = false;
       });
@@ -121,17 +164,6 @@ class _CareerReportsPageState extends State<CareerReportsPage> {
 
       return matchesBatch && matchesStatus;
     }).toList();
-  }
-
-  List<String> get _batchOptions {
-    final batches =
-        _allRows
-            .map((row) => (row['year_graduated'] ?? '').toString())
-            .where((value) => value.isNotEmpty && value != 'null')
-            .toSet()
-            .toList()
-          ..sort();
-    return ['All Batches', ...batches];
   }
 
   Map<String, int> _countBy(String key) {
@@ -402,6 +434,7 @@ class _CareerReportsPageState extends State<CareerReportsPage> {
                 selectedBatch = 'All Batches';
                 selectedStatus = 'All Status';
               });
+              _loadFilterOptions();
               _fetchReports();
             })
           else
@@ -416,13 +449,7 @@ class _CareerReportsPageState extends State<CareerReportsPage> {
           _buildDropdown(
             'Status',
             selectedStatus,
-            const [
-              'All Status',
-              'Employed',
-              'Unemployed',
-              'Self-Employed',
-              'Employer',
-            ],
+            _statusOptions,
             (v) {
               if (v == null) return;
               setState(() {
@@ -430,6 +457,15 @@ class _CareerReportsPageState extends State<CareerReportsPage> {
                 _applyFilters();
               });
             },
+          ),
+          FilledButton.icon(
+            onPressed: _rows.isEmpty ? null : _exportCsv,
+            icon: const Icon(Icons.table_view_outlined),
+            label: const Text('Export CSV'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: primaryMaroon,
+            ),
           ),
         ],
       ),
@@ -723,5 +759,100 @@ class _CareerReportsPageState extends State<CareerReportsPage> {
     final trimmed = value.trim();
     if (trimmed.length <= 14) return trimmed;
     return '${trimmed.substring(0, 14)}...';
+  }
+
+  double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  List<List<String>> _buildCareerReportExportRows() {
+    final kpis = _report['kpis'] is Map
+        ? Map<String, dynamic>.from(_report['kpis'] as Map)
+        : <String, dynamic>{};
+    final summaryRows = [
+      ['Generated On', DateTime.now().toIso8601String(), '', '', '', '', ''],
+      ['Program Filter', selectedProgram, '', '', '', '', ''],
+      ['Batch Filter', selectedBatch, '', '', '', '', ''],
+      ['Status Filter', selectedStatus, '', '', '', '', ''],
+      [
+        'Employment Rate',
+        '${_toDouble(kpis['employment_rate']).toStringAsFixed(1)}%',
+        '',
+        '',
+        '',
+        '',
+        '',
+      ],
+      [
+        'Job Relevance',
+        '${_toDouble(kpis['job_relevance_rate']).toStringAsFixed(1)}%',
+        '',
+        '',
+        '',
+        '',
+        '',
+      ],
+      [
+        'Filtered Rows',
+        _rows.length.toString(),
+        '',
+        '',
+        '',
+        '',
+        '',
+      ],
+      ['', '', '', '', '', '', ''],
+    ];
+
+    final dataRows = _rows
+        .map(
+          (row) => [
+            (row['name'] ?? row['full_name'] ?? 'N/A').toString(),
+            (row['program'] ?? selectedProgram).toString(),
+            (row['year_graduated'] ?? 'N/A').toString(),
+            (row['employment_status'] ?? 'N/A').toString(),
+            (row['sector'] ?? 'N/A').toString(),
+            (row['monthly_income'] ?? 'N/A').toString(),
+            (row['related_job'] ?? row['job_related'] ?? 'N/A').toString(),
+          ],
+        )
+        .toList();
+
+    return [...summaryRows, ...dataRows];
+  }
+
+  Future<void> _exportCsv() async {
+    try {
+      final path = await CsvExportService.exportRows(
+        filename:
+            'career_reports_${DateTime.now().millisecondsSinceEpoch}.csv',
+        headers: const [
+          'Name',
+          'Program',
+          'Year Graduated',
+          'Employment Status',
+          'Sector',
+          'Monthly Income',
+          'Related Job',
+        ],
+        rows: _buildCareerReportExportRows(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('CSV exported: $path'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to export CSV.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

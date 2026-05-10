@@ -93,7 +93,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
     }
 
     try {
-      final response = await http.get(ApiService.uri('get_admin_stats.php'));
+      final response = await http.get(
+        ApiService.uri('get_admin_stats.php'),
+        headers: ApiService.authHeaders(),
+      );
 
       if (!mounted) return;
 

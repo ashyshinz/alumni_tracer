@@ -48,6 +48,7 @@ class DeanAnalyticsService {
         'dean_dashboard.php',
         queryParameters: {'program': program},
       ),
+      headers: ApiService.authHeaders(),
     );
 
     if (response.statusCode != 200) {

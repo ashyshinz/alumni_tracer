@@ -4,6 +4,8 @@ import 'dart:convert';
 import '../../services/activity_service.dart';
 import 'dart:async';
 import '../../services/api_service.dart';
+import '../../services/csv_export_service.dart';
+import '../../services/filter_options_service.dart';
 import 'user_history_page.dart';
 
 class AlumniList extends StatefulWidget {
@@ -28,15 +30,37 @@ class _AlumniListState extends State<AlumniList> {
   String searchQuery = "";
   String selectedProgram = "All Programs";
   String selectedYear = "All Years";
+  List<String> _programOptions = const ['All Programs'];
+  List<String> _yearOptions = const ['All Years'];
 
   @override
   void initState() {
     super.initState();
+    _loadFilterOptions();
     fetchAlumni();
     _autoRefreshTimer = Timer.periodic(
       const Duration(seconds: 20),
       (_) => fetchAlumni(showLoader: false),
     );
+  }
+
+  Future<void> _loadFilterOptions() async {
+    try {
+      final options = await FilterOptionsService.fetch();
+      if (!mounted) return;
+      setState(() {
+        _programOptions = ['All Programs', ...options.programs];
+        _yearOptions = ['All Years', ...options.years];
+        if (!_programOptions.contains(selectedProgram)) {
+          selectedProgram = _programOptions.first;
+        }
+        if (!_yearOptions.contains(selectedYear)) {
+          selectedYear = _yearOptions.first;
+        }
+      });
+    } catch (_) {
+      // Keep existing fallback selections when dynamic filters are unavailable.
+    }
   }
 
   // ✅ FETCH: Get all verified alumni
@@ -99,10 +123,10 @@ class _AlumniListState extends State<AlumniList> {
             action: 'delete_user',
             title: 'Admin deleted alumni record for $name',
             type: 'User Management',
-            userId: int.tryParse(id),
-            userName: name,
-            role: 'admin',
-            metadata: {'deleted_user_id': id},
+            targetId: id,
+            targetType: 'alumni',
+            description: 'Deleted alumni record for $name.',
+            metadata: {'deleted_user_id': id, 'deleted_user_name': name},
           );
           _showSnackBar("Alumni $name deleted.", Colors.green);
           fetchAlumni();
@@ -199,6 +223,32 @@ class _AlumniListState extends State<AlumniList> {
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  Future<void> _exportCsv() async {
+    try {
+      final path = await CsvExportService.exportRows(
+        filename:
+            'alumni_list_${DateTime.now().millisecondsSinceEpoch}.csv',
+        headers: const ['Name', 'Email', 'Program', 'Year', 'Status'],
+        rows: filteredAlumni
+            .map(
+              (user) => [
+                (user['name'] ?? 'N/A').toString(),
+                (user['email'] ?? 'N/A').toString(),
+                (user['program'] ?? 'N/A').toString(),
+                (user['year'] ?? 'N/A').toString(),
+                (user['status'] ?? 'N/A').toString(),
+              ],
+            )
+            .toList(),
+      );
+      if (!mounted) return;
+      _showSnackBar('CSV exported: $path', Colors.green);
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar('Failed to export CSV.', Colors.red);
+    }
   }
 
   Widget _detailRow(String label, String? value) {
@@ -304,24 +354,49 @@ class _AlumniListState extends State<AlumniList> {
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: fetchAlumni,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text("Refresh List"),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(0, 52),
-                      side: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.30),
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: fetchAlumni,
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text("Refresh List"),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(0, 52),
+                          side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.30),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
                       ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 14,
+                      OutlinedButton.icon(
+                        onPressed: filteredAlumni.isEmpty ? null : _exportCsv,
+                        icon: const Icon(Icons.table_view_outlined),
+                        label: const Text("Export CSV"),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(0, 52),
+                          side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.30),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
+                    ],
                   ),
                 ),
               ],
@@ -367,24 +442,49 @@ class _AlumniListState extends State<AlumniList> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                OutlinedButton.icon(
-                  onPressed: fetchAlumni,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text("Refresh List"),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(0, 52),
-                    side: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.30),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: fetchAlumni,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text("Refresh List"),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(0, 52),
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.30),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
                     ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 14,
+                    OutlinedButton.icon(
+                      onPressed: filteredAlumni.isEmpty ? null : _exportCsv,
+                      icon: const Icon(Icons.table_view_outlined),
+                      label: const Text("Export CSV"),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(0, 52),
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.30),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -408,7 +508,7 @@ class _AlumniListState extends State<AlumniList> {
                 const SizedBox(height: 12),
                 _buildDropdown(
                   selectedProgram,
-                  ["All Programs", "BSIT", "BSCS", "BSECE"],
+                  _programOptions,
                   (val) {
                     setState(() {
                       selectedProgram = val!;
@@ -419,7 +519,7 @@ class _AlumniListState extends State<AlumniList> {
                 const SizedBox(height: 12),
                 _buildDropdown(
                   selectedYear,
-                  ["All Years", "2021", "2022", "2023", "2024"],
+                  _yearOptions,
                   (val) {
                     setState(() {
                       selectedYear = val!;
@@ -436,7 +536,7 @@ class _AlumniListState extends State<AlumniList> {
                 Expanded(
                   child: _buildDropdown(
                     selectedProgram,
-                    ["All Programs", "BSIT", "BSCS", "BSECE"],
+                    _programOptions,
                     (val) {
                       setState(() {
                         selectedProgram = val!;
@@ -449,7 +549,7 @@ class _AlumniListState extends State<AlumniList> {
                 Expanded(
                   child: _buildDropdown(
                     selectedYear,
-                    ["All Years", "2021", "2022", "2023", "2024"],
+                    _yearOptions,
                     (val) {
                       setState(() {
                         selectedYear = val!;
